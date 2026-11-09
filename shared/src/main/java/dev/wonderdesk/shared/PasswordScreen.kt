@@ -34,6 +34,29 @@ object Passwords {
         for (i in chars.lastIndex downTo 1) { val j = random.nextInt(i + 1); val old = chars[i]; chars[i] = chars[j]; chars[j] = old }
         return chars.joinToString("")
     }
+
+    /** Local heuristic only, not a security proof. Returns score 0..7 and a short label. */
+    fun strength(password: String): Pair<Int, String> {
+        val lengthScore = when {
+            password.length >= 16 -> 3
+            password.length >= 12 -> 2
+            password.length >= 8 -> 1
+            else -> 0
+        }
+        var classes = 0
+        if (password.any { it.isLowerCase() }) classes++
+        if (password.any { it.isUpperCase() }) classes++
+        if (password.any { it.isDigit() }) classes++
+        if (password.any { !it.isLetterOrDigit() }) classes++
+        val total = (lengthScore + classes).coerceIn(0, 7)
+        val label = when {
+            total <= 2 -> "Weak"
+            total <= 4 -> "Fair"
+            total == 5 -> "Good"
+            else -> "Strong"
+        }
+        return total to label
+    }
 }
 
 @Composable

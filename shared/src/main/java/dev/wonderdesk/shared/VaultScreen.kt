@@ -148,6 +148,8 @@ fun VaultScreen() {
                 OutlinedTextField(title, { title = it.take(1000); touch() }, label = { Text("Title") })
                 OutlinedTextField(user, { user = it.take(1000); touch() }, label = { Text("Username") })
                 OutlinedTextField(password, { password = it.take(10000); touch() }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                val strength = remember(password) { Passwords.strength(password) }
+                Text("Strength: ${strength.second} (${strength.first}/7) · 12+ characters with mixed classes is stronger. This meter is only a local heuristic.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { password = Passwords.generate(24, true); touch() }) { Text("Generate 24-character password") }
             }
         }, confirmButton = { TextButton(onClick = {

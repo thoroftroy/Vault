@@ -149,6 +149,26 @@ class EncryptedVault(private val file: File) {
         publish(seal(contents, derived, header), expected)
         key?.fill(0); key = derived; metadata = header
     }
+    /** Seals app-only data (the Android sidecar) with the unlocked vault key. Separate AAD so it can never pass as a vault. */
+    @Synchronized fun sealExtra(plain: ByteArray): ByteArray {
+        val derived = key ?: error("Vault is locked")
+        val nonce = ByteArray(12).also { random.nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(derived, "AES"), GCMParameterSpec(128, nonce))
+        cipher.updateAAD("wonderdesk-vault-extras-v1".toByteArray())
+        return nonce + cipher.doFinal(plain)
+    }
+    @Synchronized fun openExtra(sealed: ByteArray): ByteArray {
+        val derived = key ?: error("Vault is locked")
+        require(sealed.size > 28) { "Corrupt sidecar" }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(derived, "AES"), GCMParameterSpec(128, sealed.copyOfRange(0, 12)))
+        cipher.updateAAD("wonderdesk-vault-extras-v1".toByteArray())
+        return cipher.doFinal(sealed.copyOfRange(12, sealed.size))
+    }
+    /** True when [master] opens the vault on disk, without changing state. */
+    @Synchronized fun verify(master: String): Boolean = runCatching { open(read(), master).key.fill(0); true }.getOrDefault(false)
+
     @Synchronized fun exportEncrypted(): ByteArray = disk { check(exists) { "No vault to export" }; read() }
     @Synchronized fun importNew(raw: ByteArray, master: String) = disk {
         check(!exists) { "Import requires an empty vault; existing credentials are never replaced" }

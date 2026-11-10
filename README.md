@@ -1,23 +1,26 @@
-# Vault for Android
+# Vault
 
-Stores logins and passwords in an encrypted vault on your phone.
+A password manager that keeps everything encrypted on your phone.
 
-## Easiest install and updates
+## What it does
 
-Get App Hub once from https://github.com/thoroftroy/App-Hub/releases, then use it to install and update this app and the rest of the suite. You will not need to download APKs by hand.
-## Install
+- Logins with website, username, password, notes, category and favourite. Search, filter, and copy with automatic clipboard clearing.
+- **Autofill** in Firefox and other apps, and Vault offers to save new logins as you sign in. Turn it on in Settings › Autofill.
+- **Fingerprint or face unlock**, auto-lock when you leave, and a 5-minute idle lock.
+- **Generator** for strong passwords or easy-to-type passphrases, two-factor codes (TOTP), and a **health** check for weak, reused and old passwords.
+- Recovery: previous passwords are kept for each login, deleted logins stay in the trash for 30 days, and an optional recovery code unlocks the vault if you forget your master password.
+- Encrypted backups use the same format as Vault on Wonderdesk for Linux.
 
-Install the APK, then open the app. Your phone may ask you to allow unknown sources first. Needs Android 10 or newer.
-## Using Vault
+## Install and update
 
-- Make a vault with a master password of 12 characters or more. Everything is encrypted before it touches storage.
-- Save logins with titles, usernames and passwords. The editor shows a strength meter and can generate strong passwords.
-- Copying marks the clipboard sensitive and clears it after a short time.
-- Lock any time. It also locks when the app goes to the background or after five idle minutes.
-- Backups are encrypted files you can export and import. There is no password recovery, so keep your master password somewhere safe.
+The easiest way is Wonderdesk Apphub: get it once from https://github.com/thoroftroy/App-Hub/releases, then install and update this app and the rest of the suite from there.
 
-No sync, autofill, fingerprint unlock, or outside security audit.
+Or download the APK from this repository's Releases, open it, and allow installing from that source if your phone asks. Needs Android 10 or newer.
 
 ## Look and feel
 
-Open About in the app to change the theme or motion. Aqua is the default.
+Every Wonderdesk app follows the look you pick in Control Room (Aqua, Bliss, Dark Bliss or Super). You can give this app its own look in its Settings.
+
+## Privacy
+
+Everything stays on your phone. No accounts, ads or tracking.

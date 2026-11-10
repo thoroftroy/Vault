@@ -217,6 +217,8 @@ private fun UnlockedVault() {
     var tab by rememberSaveable { mutableStateOf("items") }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Item?>(null) }
+    var browsers by showBrowsers
+    if (browsers) { BrowsersScreen(onBack = { browsers = false }); return }
     val item = open?.let { id -> Vault.items.find { it.id == id } }
     editing?.let { e -> EditItem(e, onClose = { editing = null }, onSaved = { saved -> editing = null; open = saved.id }); return }
     if (item != null) { ItemDetail(item, onBack = { open = null }, onEdit = { editing = item }); return }
@@ -230,6 +232,7 @@ private fun UnlockedVault() {
             ToolbarButton(WonderIcons.Lock, "Lock now", { Vault.lock() })
         },
         settings = { VaultSettings() },
+        menu = listOf(WonderMenuItem("Browser and Google passwords", WonderIcons.Language) { browsers = true }),
     ) {
         when (tab) {
             "gen" -> GeneratorPane(onUse = { pw -> editing = Item(pw = pw) })
@@ -329,7 +332,7 @@ private fun ItemDetail(i: Item, onBack: () -> Unit, onEdit: () -> Unit) {
                 Box(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 10.dp)) { StrengthBar(lvl, label) }
                 if (i.totp.isNotBlank()) {
                     PanelDivider()
-                    val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
+                    val now = rememberNow(1000)
                     val code = Totp.code(i.totp, now)
                     ListRow("Two-factor code", subtitle = code?.first?.chunked(3)?.joinToString(" ") ?: "Invalid key", icon = WonderIcons.Timer, tint = Color(0xFF2E9E44), trailing = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -531,6 +534,10 @@ private fun VaultSettings() {
                 context.launchSafely(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {}
             })
     }
+    Panel(title = "Browsers") {
+        ListRow("Browser and Google passwords", subtitle = "Bring in passwords from Chrome, Firefox and Google, or send Vault's to them", icon = WonderIcons.Language, tint = Color(0xFF1E7FE8), chevron = true,
+            onClick = { showBrowsers.value = true })
+    }
     Panel(title = "Recovery", footer = "Without a recovery code, a forgotten master password can't be recovered. Nobody, including Wonderdesk, can open your vault.") {
         ListRow(if (Recovery.enabled(context)) "New recovery code" else "Create a recovery code", subtitle = if (Recovery.enabled(context)) "A code is set up" else "Unlocks Vault if you forget your password",
             icon = WonderIcons.Key, tint = Color(0xFFE5483C), chevron = true, onClick = { askMaster = "recovery" })
@@ -593,4 +600,75 @@ private fun VaultSettings() {
             }
         }
     }, confirmButton = { TextButton(onClick = { trash = false }) { Text("Done") } })
+}
+
+/* ------------------------------------------- browsers and Google ------------------------------------------- */
+
+private val showBrowsers = mutableStateOf(false)
+
+@Composable
+private fun BrowsersScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val p = wonderPalette()
+    val toast = remember { mutableStateOf<(String) -> Unit>({}) }
+    var preview by remember { mutableStateOf<Pair<Uri, BrowserPasswords.Parsed>?>(null) }
+    var done by remember { mutableStateOf<Pair<Uri, BrowserPasswords.Merge>?>(null) }
+    var exportWarn by remember { mutableStateOf(false) }
+    val browsers = remember { BrowserPasswords.installed(context) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openInputStream(uri)!!.use { BrowserPasswords.read(it.readBytes().decodeToString()) } }
+            .onSuccess { preview = uri to it }.onFailure { toast.value(it.message ?: "Couldn't read that file") }
+    }
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(BrowserPasswords.export(Vault.items).toByteArray()) } }
+            .onSuccess { toast.value("Exported ${Vault.items.size} logins. Import the file in your browser, then delete it") }.onFailure { toast.value("Couldn't save the file") }
+    }
+    WonderApp(appName = "Vault", about = ABOUT, title = "Browser passwords", onBack = onBack) {
+        toast.value = LocalToast.current
+        Page {
+            Text("Android keeps each app's saved passwords private, so Vault can't read them directly. Instead, export them from the browser (a one-time file), then import that file here.",
+                style = MaterialTheme.typography.bodyMedium, color = p.secondaryText)
+            Panel(title = "1. Export from your browser") {
+                browsers.forEachIndexed { i, b ->
+                    if (i > 0) PanelDivider()
+                    ListRow(b.name, subtitle = b.steps, icon = if (b.pkg == "com.google.android.gms") WonderIcons.Shield else WonderIcons.Language,
+                        tint = when (b.name) { "Firefox" -> Color(0xFFE66000); "Chrome" -> Color(0xFF1A73E8); "Google Password Manager" -> Color(0xFF34A853); else -> Color(0xFF7A7F87) },
+                        trailing = { TextButton(onClick = { BrowserPasswords.open(context, b) }) { Text("Open") } })
+                }
+            }
+            Panel(title = "2. Import the file", footer = "Works with Chrome, Google Password Manager, Firefox, Samsung Internet, Edge, Bitwarden, 1Password, LastPass and other CSV exports. Duplicates are merged; changed passwords keep the old one in history.") {
+                ListRow("Choose the exported file", subtitle = "Usually in Downloads, ending in .csv", icon = WonderIcons.UploadFile, tint = Color(0xFF2E9E44), chevron = true,
+                    onClick = { picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
+            }
+            Panel(title = "Send Vault's passwords to a browser") {
+                ListRow("Export for Chrome, Google or Firefox", subtitle = "A CSV file the browser can import", icon = WonderIcons.Download, tint = Color(0xFF8E44AD), chevron = true, onClick = { exportWarn = true })
+            }
+            Panel(title = "Let Vault do the filling", footer = "With Vault as your autofill service, browsers ask Vault instead of saving passwords themselves. Then turn off “Save passwords” in each browser so there's one place to manage them.") {
+                val af = remember { context.getSystemService(AutofillManager::class.java) }
+                ListRow(if (af?.hasEnabledAutofillServices() == true) "Vault fills passwords" else "Use Vault for autofill", icon = WonderIcons.Bolt, tint = Color(0xFFF2A516), chevron = true,
+                    onClick = { context.launchSafely(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {} })
+            }
+        }
+    }
+    preview?.let { (uri, parsed) ->
+        val newCount = parsed.items.count { n -> Vault.items.none { e -> e.user.equals(n.user, true) && rootDomain(e.domain) == rootDomain(n.domain) } }
+        WonderDialog(onDismissRequest = { preview = null }, title = { Text("Import ${parsed.items.size} logins?") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("From ${parsed.source}. $newCount are new; the rest match logins already in Vault and will be updated if the password changed.")
+                Panel { parsed.items.take(5).forEachIndexed { i, it -> if (i > 0) PanelDivider(); ListRow(it.title.ifBlank { it.domain }, subtitle = it.user) } }
+                if (parsed.items.size > 5) Text("and ${parsed.items.size - 5} more", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
+            }
+        }, confirmButton = { TextButton(onClick = { val m = BrowserPasswords.merge(parsed.items); preview = null; done = uri to m }) { Text("Import") } },
+            dismissButton = { TextButton(onClick = { preview = null }) { Text("Cancel") } })
+    }
+    done?.let { (uri, m) ->
+        WonderDialog(onDismissRequest = { done = null }, title = { Text("Imported") }, text = {
+            Text("${m.added} added, ${m.updated} updated, ${m.same} already up to date.\n\nThe exported file still has every password in plain text. Delete it now?")
+        }, confirmButton = { TextButton(onClick = {
+            val ok = runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }.getOrDefault(false)
+            toast.value(if (ok) "Export file deleted" else "Couldn't delete it here. Delete it in Wayfinder"); done = null
+        }) { Text("Delete file", color = p.danger) } }, dismissButton = { TextButton(onClick = { done = null }) { Text("Keep") } })
+    }
+    if (exportWarn) ConfirmDialog("Export ${Vault.items.size} passwords?", "The file isn't encrypted. Anyone who opens it can read every password. Import it into your browser right away, then delete it.",
+        "Export", onConfirm = { saver.launch("vault-passwords.csv") }, onDismiss = { exportWarn = false })
 }

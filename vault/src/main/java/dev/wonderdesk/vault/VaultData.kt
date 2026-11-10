@@ -165,7 +165,8 @@ object Generator {
     fun passphrase(words: Int, separator: String, capitalize: Boolean, number: Boolean): String {
         val list = (0 until words).map { WORDS[random.nextInt(WORDS.size)].let { w -> if (capitalize) w.replaceFirstChar(Char::uppercase) else w } }.toMutableList()
         if (number) { val i = random.nextInt(list.size); list[i] = list[i] + random.nextInt(10) }
-        return list.joinToString(separator)
+        val sep = if (separator.any { !it.isLetterOrDigit() }) separator else "-"
+        return list.joinToString(sep)
     }
 
     /** Rough entropy in bits from the character classes used. */
@@ -180,17 +181,42 @@ object Generator {
         return (pw.length - repeats / 2.0) * Math.log(pool.toDouble()) / Math.log(2.0)
     }
 
+    /** Which kinds of character a password is missing: capital, lowercase, number, symbol. */
+    fun missing(pw: String): List<String> = buildList {
+        if (pw.none { it.isUpperCase() }) add("a capital letter")
+        if (pw.none { it.isLowerCase() }) add("a lowercase letter")
+        if (pw.none { it.isDigit() }) add("a number")
+        if (pw.none { !it.isLetterOrDigit() && !it.isWhitespace() }) add("a symbol")
+    }
+
+    /**
+     * 0 very weak … 4 very strong. Length alone never makes a password strong: it must mix capitals,
+     * lowercase, numbers and symbols, and be at least 12 characters, to rate Strong or better.
+     */
     fun strength(pw: String): Pair<Int, String> {
         val common = pw.lowercase() in COMMON || pw.length < 6
         val bits = if (common) 0.0 else entropy(pw)
-        return when {
-            bits < 28 -> 0 to "Very weak"
-            bits < 40 -> 1 to "Weak"
-            bits < 60 -> 2 to "Fair"
-            bits < 80 -> 3 to "Strong"
-            else -> 4 to "Very strong"
+        var level = when {
+            bits < 28 -> 0
+            bits < 40 -> 1
+            bits < 60 -> 2
+            bits < 80 -> 3
+            else -> 4
         }
+        val lacks = missing(pw)
+        if (lacks.size >= 2) level = minOf(level, 1)
+        if (lacks.isNotEmpty() || pw.length < 12) level = minOf(level, 2)
+        val name = listOf("Very weak", "Weak", "Fair", "Strong", "Very strong")[level]
+        val hint = when {
+            pw.isEmpty() -> ""
+            lacks.isNotEmpty() -> " · add " + lacks.joinToString(", ").replaceLast(", ", " and ")
+            pw.length < 12 -> " · use 12 or more characters"
+            else -> ""
+        }
+        return level to name + hint
     }
+
+    private fun String.replaceLast(a: String, b: String): String { val i = lastIndexOf(a); return if (i < 0) this else substring(0, i) + b + substring(i + a.length) }
 
     private val COMMON = setOf("password", "123456", "12345678", "qwerty", "abc123", "111111", "letmein", "iloveyou", "admin", "welcome", "monkey", "dragon",
         "football", "baseball", "sunshine", "princess", "password1", "123456789", "1234567890", "qwerty123", "000000", "trustno1")

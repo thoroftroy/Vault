@@ -1,6 +1,6 @@
 # Vault for Android
 
-Stores logins and passwords in an encrypted vault on your phone. By Rednave.
+Stores logins and passwords in an encrypted vault on your phone.
 
 ## Easiest install and updates
 

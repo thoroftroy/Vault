@@ -113,12 +113,15 @@ fun UnlockPane(onUnlocked: () -> Unit) {
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { importUri = uri }
     }
-    fun attempt(block: () -> Unit) {
+    fun attempt(withPassword: String? = null, block: () -> Unit) {
         busy = true; error = null
         scope.launch {
             val r = withContext(Dispatchers.Default) { runCatching(block) }
             busy = false
-            r.onSuccess { onUnlocked() }.onFailure { error = it.message ?: "That didn't work" }
+            r.onSuccess {
+                if (withPassword != null && !BioKey.enabled(context) && BioKey.available(context) && !context.vaultPrefs().getBoolean("bioDeclined", false)) offerBio.value = withPassword
+                onUnlocked()
+            }.onFailure { error = it.message ?: "That didn't work" }
         }
     }
     fun bio() {
@@ -151,19 +154,19 @@ fun UnlockPane(onUnlocked: () -> Unit) {
         } else {
             Field(pw, { pw = it; error = null }, "Master password", visual = if (show) VisualTransformation.None else PasswordVisualTransformation(), keyboard = KeyboardType.Password,
                 trailing = { IconButton(onClick = { show = !show }) { Icon(if (show) WonderIcons.VisibilityOff else WonderIcons.Visibility, if (show) "Hide" else "Show") } },
-                onDone = { if (!creating && pw.isNotEmpty()) attempt { Vault.unlock(pw) } })
+                onDone = { if (!creating && pw.isNotEmpty()) attempt(pw) { Vault.unlock(pw) } })
             if (creating) {
                 val (s, label) = Generator.strength(pw)
                 StrengthBar(s, label)
                 Field(confirm, { confirm = it }, "Confirm master password", visual = PasswordVisualTransformation(), keyboard = KeyboardType.Password,
                     isError = confirm.isNotEmpty() && confirm != pw)
-                WButton("Create vault", { attempt { Vault.create(pw) } }, Modifier.fillMaxWidth(), kind = ButtonKind.Primary,
+                WButton("Create vault", { attempt(pw) { Vault.create(pw) } }, Modifier.fillMaxWidth(), kind = ButtonKind.Primary,
                     enabled = !busy && pw.length >= 12 && pw == confirm)
                 if (pw.isNotEmpty() && pw.length < 12) Text("Use at least 12 characters. A few random words work well.", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
                 WButton("Import a Vault backup instead", { importer.launch(arrayOf("application/json", "*/*")) }, kind = ButtonKind.Plain, icon = WonderIcons.UploadFile)
             } else {
-                WButton(if (busy) "Unlocking…" else "Unlock", { attempt { Vault.unlock(pw) } }, Modifier.fillMaxWidth(), kind = ButtonKind.Primary, enabled = !busy && pw.isNotEmpty())
-                if (BioKey.enabled(context)) WButton("Use fingerprint", { bio() }, Modifier.fillMaxWidth(), icon = WonderIcons.Lock)
+                WButton(if (busy) "Unlocking…" else "Unlock", { attempt(pw) { Vault.unlock(pw) } }, Modifier.fillMaxWidth(), kind = ButtonKind.Primary, enabled = !busy && pw.isNotEmpty())
+                if (BioKey.enabled(context)) WButton("Use fingerprint or face", { bio() }, Modifier.fillMaxWidth(), icon = WonderIcons.Lock)
                 if (Recovery.enabled(context)) WButton("Forgot password? Use recovery code", { recovery = true }, kind = ButtonKind.Plain)
             }
         }
@@ -211,9 +214,29 @@ fun LetterTile(item: Item, size: androidx.compose.ui.unit.Dp = 36.dp) {
 
 /* ------------------------------------------------- unlocked ---------------------------------------- */
 
+/** Set after a password unlock when fingerprint unlock could be turned on; the unlocked screen asks once. */
+private val offerBio = mutableStateOf<String?>(null)
+
+@Composable
+private fun BioOffer() {
+    val context = LocalContext.current
+    val master = offerBio.value ?: return
+    WonderDialog(onDismissRequest = { offerBio.value = null }, title = { Text("Unlock with your fingerprint?") }, text = {
+        Text("Next time, open Vault with your fingerprint or face instead of typing the master password. The password stays encrypted with a key only your fingerprint can unlock.")
+    }, confirmButton = { TextButton(onClick = {
+        offerBio.value = null
+        val cipher = runCatching { BioKey.encryptCipher() }.getOrNull() ?: return@TextButton
+        BiometricPrompt.Builder(context).setTitle("Turn on fingerprint unlock").setNegativeButton("Cancel", context.mainExecutor) { _, _ -> }.build()
+            .authenticate(BiometricPrompt.CryptoObject(cipher), CancellationSignal(), context.mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { result.cryptoObject?.cipher?.let { BioKey.store(context, it, master) } }
+            })
+    }) { Text("Turn on") } }, dismissButton = { TextButton(onClick = { context.vaultPrefs().edit().putBoolean("bioDeclined", true).apply(); offerBio.value = null }) { Text("Not now") } })
+}
+
 @Composable
 private fun UnlockedVault() {
     val context = LocalContext.current
+    BioOffer()
     var tab by rememberSaveable { mutableStateOf("items") }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Item?>(null) }
@@ -513,7 +536,9 @@ private fun VaultSettings() {
         if (uri != null) runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(Vault.engineRef.exportEncrypted()) } }
     }
     Panel(title = "Unlocking") {
-        SwitchRow("Unlock with fingerprint or face", bio, { on -> if (on) askMaster = "bio" else { BioKey.disable(context); bio = false } }, icon = WonderIcons.Lock, tint = Color(0xFF2E9E44))
+        val bioReady = remember { BioKey.available(context) }
+        SwitchRow("Unlock with fingerprint or face", bio, { on -> if (on) { if (bioReady) askMaster = "bio" else context.launchSafely(BioKey.enrollIntent()) {} } else { BioKey.disable(context); bio = false } },
+            subtitle = if (bioReady) (if (bio) "On: Vault opens with your fingerprint" else "Off") else "Add a fingerprint or face in Android settings first (tap to set up)", icon = WonderIcons.Lock, tint = Color(0xFF2E9E44))
         PanelDivider()
         var menu by remember { mutableStateOf(false) }
         Box {

@@ -298,6 +298,16 @@ object BioKey {
     private fun file(c: Context) = File(c.noBackupFilesDir, "vault-bio.bin")
     fun enabled(c: Context) = file(c).exists()
 
+    /** A strong fingerprint or face is enrolled, so a key can be tied to it. */
+    fun available(c: Context): Boolean = runCatching {
+        c.getSystemService(android.hardware.biometrics.BiometricManager::class.java)
+            .canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG) == android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS
+    }.getOrDefault(false)
+
+    fun enrollIntent(): android.content.Intent = if (android.os.Build.VERSION.SDK_INT >= 30)
+        android.content.Intent(android.provider.Settings.ACTION_BIOMETRIC_ENROLL).putExtra(android.provider.Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED, android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        else android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)
+
     private fun key(create: Boolean): SecretKey? {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }

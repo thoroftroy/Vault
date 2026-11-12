@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package dev.wonderdesk.vault
 
 import android.content.ClipData
@@ -297,7 +298,7 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
             }
             grouped.forEach { (letter, list) ->
                 item(key = "h$letter") { SectionLabel(letter.toString(), Modifier.padding(start = 6.dp, top = 6.dp, bottom = 6.dp)) }
-                itemsIndexed(list, key = { _, i -> i.id }) { idx, i -> ItemRow(i, Modifier.panelItem(idx, list.size)) { onOpen(i) } }
+                itemsIndexed(list, key = { _, i -> i.id }) { idx, i -> Box(Modifier.animateItemPlacement()) { ItemRow(i, Modifier.panelItem(idx, list.size)) { onOpen(i) } }}
             }
             if (shown.isEmpty()) item { Text("No logins match.", color = p.secondaryText, modifier = Modifier.padding(6.dp)) }
         }

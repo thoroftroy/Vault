@@ -55,6 +55,11 @@ class MainActivity : WonderActivity() {
     @Composable override fun Content() = VaultApp()
 }
 
+/** What Android must allow for this app to work fully; shown as a banner when off and in Settings. */
+private val APP_NEEDS by lazy { listOf(
+    WonderNeed("Autofill service", "Fills your logins in Firefox and other apps", required = false, access = SpecialAccess.Kind.AUTOFILL),
+) }
+
 private const val ABOUT = "Vault keeps your passwords encrypted on this phone with AES-256-GCM and a key derived from your master password. " +
     "It fills logins in Firefox and other apps, generates strong passwords and passphrases, shows two-factor codes, checks password health, " +
     "and can unlock with your fingerprint. Backups use the same format as Vault on Wonderdesk for Linux."
@@ -246,7 +251,7 @@ private fun UnlockedVault() {
     val item = open?.let { id -> Vault.items.find { it.id == id } }
     editing?.let { e -> EditItem(e, onClose = { editing = null }, onSaved = { saved -> editing = null; open = saved.id }); return }
     if (item != null) { ItemDetail(item, onBack = { open = null }, onEdit = { editing = item }); return }
-    WonderApp(
+    WonderApp(needs = APP_NEEDS, 
         appName = "Vault", about = ABOUT,
         tabs = listOf(WonderTab("items", "Passwords", WonderIcons.Key), WonderTab("gen", "Generator", WonderIcons.Password), WonderTab("health", "Health", WonderIcons.Shield)),
         selectedTab = tab, onTab = { tab = it; Vault.touch() },
@@ -290,7 +295,7 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
         }
         val favorites = if (filter == "All" && q.isBlank()) shown.filter { it.favorite } else emptyList()
         val grouped = shown.groupBy { it.title.firstOrNull()?.uppercaseChar()?.takeIf { c -> c.isLetter() } ?: '#' }.toSortedMap()
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
             if (favorites.isNotEmpty()) {
                 item { SectionLabel("Favorites", Modifier.padding(start = 6.dp, bottom = 6.dp)) }
                 itemsIndexed(favorites, key = { _, i -> "f" + i.id }) { idx, i -> ItemRow(i, Modifier.panelItem(idx, favorites.size)) { onOpen(i) } }
@@ -489,7 +494,7 @@ private fun GeneratorPane(compact: Boolean = false, onUse: (String) -> Unit) {
 private fun HealthPane(onOpen: (Item) -> Unit) {
     val p = wonderPalette()
     val h = remember(Vault.items) { health(Vault.items) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
         item {
             Panel {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

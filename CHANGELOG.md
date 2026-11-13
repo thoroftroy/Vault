@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.3
+
+- Tap the tab you're already on to glide back to the top of its list
+- Nothing required stays hidden: if Android is blocking something the app needs, a slim banner says what and takes you straight to the switch, and Settings › Permissions and access lists everything with its state
+
 ## v0.6.2
 
 - Logins glide into place when you add or remove them

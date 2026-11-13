@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.4
+
+- Fixes from a full round of stress testing on every screen
+
 ## v0.6.3
 
 - Tap the tab you're already on to glide back to the top of its list

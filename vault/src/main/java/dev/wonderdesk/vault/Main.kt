@@ -498,7 +498,27 @@ private fun GeneratorPane(compact: Boolean = false, onUse: (String) -> Unit) {
 private fun HealthPane(onOpen: (Item) -> Unit) {
     val p = wonderPalette()
     val h = remember(Vault.items) { health(Vault.items) }
+    val scope = rememberCoroutineScope()
+    var breach by remember { mutableStateOf<Map<String, Int>?>(null) }
+    var checking by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
+        item {
+            Panel(Modifier.padding(bottom = 14.dp), title = "Leaked passwords", footer = "Checks Have I Been Pwned's list of passwords from known data breaches. Only the first 5 characters of a scrambled (SHA-1) copy of each password leave your phone, never the password itself.") {
+                if (breach == null) ListRow(if (checking) "Checking…" else "Check for leaked passwords", icon = WonderIcons.Security, tint = p.warning, chevron = !checking, onClick = {
+                    if (checking) return@ListRow
+                    checking = true
+                    scope.launch {
+                        breach = withContext(Dispatchers.IO) { Breach.check(Vault.items) }
+                        checking = false
+                    }
+                }) else {
+                    val bad = Vault.items.filter { (breach!![it.id] ?: 0) > 0 }
+                    if (bad.isEmpty()) ListRow("None of your passwords are in known leaks", icon = WonderIcons.Verified, tint = p.success)
+                    else bad.forEachIndexed { i, it -> if (i > 0) PanelDivider()
+                        ListRow(it.title.ifBlank { it.domain }, subtitle = "Seen %,d times in leaks · change it".format(breach!![it.id]), leading = { LetterTile(it) }, chevron = true, onClick = { onOpen(it) }) }
+                }
+            }
+        }
         item {
             Panel {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -724,4 +744,24 @@ private fun BrowsersScreen(onBack: () -> Unit) {
     }
     if (exportWarn) ConfirmDialog("Export ${Vault.items.size} passwords?", "The file isn't encrypted. Anyone who opens it can read every password. Import it into your browser right away, then delete it.",
         "Export", onConfirm = { saver.launch("vault-passwords.csv") }, onDismiss = { exportWarn = false })
+}
+
+
+/** Have I Been Pwned "range" check: k-anonymity, only a 5-character hash prefix is sent. Returns item id → times seen. */
+object Breach {
+    fun check(items: List<Item>): Map<String, Int> {
+        val byHash = items.filter { it.pw.isNotEmpty() }.groupBy { sha1(it.pw) }
+        val out = HashMap<String, Int>()
+        byHash.keys.groupBy { it.take(5) }.forEach { (prefix, hashes) ->
+            val body = runCatching {
+                val c = java.net.URL("https://api.pwnedpasswords.com/range/$prefix").openConnection() as java.net.HttpURLConnection
+                c.setRequestProperty("Add-Padding", "true"); c.connectTimeout = 15_000; c.readTimeout = 15_000
+                c.inputStream.bufferedReader().use { it.readText() }.also { c.disconnect() }
+            }.getOrNull() ?: return@forEach
+            val counts = body.lineSequence().mapNotNull { l -> l.split(':').takeIf { it.size == 2 }?.let { it[0].trim() to (it[1].trim().toIntOrNull() ?: 0) } }.toMap()
+            hashes.forEach { h -> val n = counts[h.drop(5)] ?: 0; byHash[h]?.forEach { out[it.id] = n } }
+        }
+        return out
+    }
+    private fun sha1(s: String) = java.security.MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02X".format(it) }
 }

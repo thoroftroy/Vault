@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.9
+
+- Leaked-password check on the Health tab: finds passwords that appear in known data breaches (Have I Been Pwned). Only the first 5 characters of a scrambled copy of each password leave your phone, and only when you tap Check
+- Fixed a crash when moving around with arrow keys or Tab while a screen was closing
+
 ## v0.6.8
 
 - Lighter on the battery: in the Super look the drifting sparkles settle after a few seconds without a touch (the next tap wakes them), so a screen you're reading no longer redraws 25 times a second

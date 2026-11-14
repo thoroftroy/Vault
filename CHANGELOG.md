@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.5
+
+- Polish and fixes
+
 ## v0.6.4
 
 - Fixes from a full round of stress testing on every screen

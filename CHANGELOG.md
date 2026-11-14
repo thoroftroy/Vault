@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.7
+
+- Changing the look in Control Room now restyles this app's widgets straight away, with no refresh or restart
+
 ## v0.6.6
 
 - Importing from Firefox, Chrome, Google and other browsers is easy to find: an Import button on the Passwords screen, on the empty vault, and in the menu. Tap a browser for a step-by-step guide that opens it, tells you exactly what to tap, then picks up the file

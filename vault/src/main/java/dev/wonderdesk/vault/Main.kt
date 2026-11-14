@@ -257,11 +257,12 @@ private fun UnlockedVault() {
         selectedTab = tab, onTab = { tab = it; Vault.touch() },
         title = when (tab) { "gen" -> "Generator"; "health" -> "Password health"; else -> "Vault" },
         actions = {
+            if (tab == "items") ToolbarButton(WonderIcons.Download, "Import passwords from a browser", { browsers = true })
             if (tab == "items") ToolbarButton(WonderIcons.Add, "Add login", { editing = Item() })
             ToolbarButton(WonderIcons.Lock, "Lock now", { Vault.lock() })
         },
         settings = { VaultSettings() },
-        menu = listOf(WonderMenuItem("Browser and Google passwords", WonderIcons.Language) { browsers = true }),
+        menu = listOf(WonderMenuItem("Import from Firefox, Chrome, Google…", WonderIcons.Download) { browsers = true }, WonderMenuItem("Send passwords to a browser", WonderIcons.Language) { browsers = true }),
     ) {
         when (tab) {
             "gen" -> GeneratorPane(onUse = { pw -> editing = Item(pw = pw) })
@@ -283,7 +284,10 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
     }
     if (Vault.items.isEmpty()) {
         EmptyState("Your vault is empty", "Add your first login, or let Vault save logins as you sign in to websites and apps.",
-            action = { WButton("Add login", onNew, icon = WonderIcons.Add, kind = ButtonKind.Primary) })
+            action = { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                WButton("Import from Firefox, Chrome or Google", { showBrowsers.value = true }, icon = WonderIcons.Download, kind = ButtonKind.Primary)
+                WButton("Add a login yourself", onNew, icon = WonderIcons.Add)
+            } })
         return
     }
     Column(Modifier.fillMaxSize()) {
@@ -654,7 +658,8 @@ private fun BrowsersScreen(onBack: () -> Unit) {
         if (uri != null) runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(BrowserPasswords.export(Vault.items).toByteArray()) } }
             .onSuccess { toast.value("Exported ${Vault.items.size} logins. Import the file in your browser, then delete it") }.onFailure { toast.value("Couldn't save the file") }
     }
-    WonderApp(appName = "Vault", about = ABOUT, title = "Browser passwords", onBack = onBack) {
+    var guide by remember { mutableStateOf<BrowserPasswords.Browser?>(null) }
+    WonderApp(appName = "Vault", about = ABOUT, title = "Import and export", onBack = onBack) {
         toast.value = LocalToast.current
         Page {
             Text("Android keeps each app's saved passwords private, so Vault can't read them directly. Instead, export them from the browser (a one-time file), then import that file here.",
@@ -664,7 +669,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
                     if (i > 0) PanelDivider()
                     ListRow(b.name, subtitle = b.steps, icon = if (b.pkg == "com.google.android.gms") WonderIcons.Shield else WonderIcons.Language,
                         tint = when (b.name) { "Firefox" -> Color(0xFFE66000); "Chrome" -> Color(0xFF1A73E8); "Google Password Manager" -> Color(0xFF34A853); else -> Color(0xFF7A7F87) },
-                        trailing = { TextButton(onClick = { BrowserPasswords.open(context, b) }) { Text("Open") } })
+                        trailing = { TextButton(onClick = { guide = b }) { Text("Guide me") } }, onClick = { guide = b })
                 }
             }
             Panel(title = "2. Import the file", footer = "Works with Chrome, Google Password Manager, Firefox, Samsung Internet, Edge, Bitwarden, 1Password, LastPass and other CSV exports. Duplicates are merged; changed passwords keep the old one in history.") {
@@ -680,6 +685,23 @@ private fun BrowsersScreen(onBack: () -> Unit) {
                     onClick = { context.launchSafely(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {} })
             }
         }
+    }
+    // Step-by-step for one browser: open it, export, come back and pick the file.
+    guide?.let { b ->
+        WonderDialog(onDismissRequest = { guide = null }, title = { Text("Import from ${b.name}") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val steps = b.steps.substringAfter(": ").split(" → ").map { it.trim().trimEnd('.') }
+                Panel {
+                    ListRow("Open ${b.name}", icon = WonderIcons.OpenInNew, tint = p.accent, chevron = true, onClick = { BrowserPasswords.open(context, b) })
+                    steps.forEachIndexed { i, st -> PanelDivider(); ListRow("${i + 1}. $st", icon = WonderIcons.ChevronRight, tint = p.secondaryText) }
+                    PanelDivider()
+                    ListRow("Come back and choose the file", subtitle = "It's in Downloads, ending in .csv", icon = WonderIcons.UploadFile, tint = Color(0xFF2E9E44), chevron = true,
+                        onClick = { guide = null; picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
+                }
+                Text("${b.name} may ask for your screen lock before it exports. Vault then offers to delete the file, since it holds your passwords in plain text.", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
+            }
+        }, confirmButton = { TextButton(onClick = { guide = null; picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) }) { Text("Choose the file") } },
+            dismissButton = { TextButton(onClick = { guide = null }) { Text("Close") } })
     }
     preview?.let { (uri, parsed) ->
         val newCount = parsed.items.count { n -> Vault.items.none { e -> e.user.equals(n.user, true) && rootDomain(e.domain) == rootDomain(n.domain) } }

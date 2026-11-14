@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.6
+
+- Importing from Firefox, Chrome, Google and other browsers is easy to find: an Import button on the Passwords screen, on the empty vault, and in the menu. Tap a browser for a step-by-step guide that opens it, tells you exactly what to tap, then picks up the file
+- Other Wonderdesk apps can keep their passwords in Vault: the Wayfinder Safe folder asks Vault for its password (unlocked with your fingerprint or master password) and can save it there when you create it
+
 ## v0.6.5
 
 - Polish and fixes

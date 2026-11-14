@@ -9,5 +9,8 @@
             <intent-filter><action android:name="android.service.autofill.AutofillService" /></intent-filter>
             <meta-data android:name="android.autofill" android:resource="@xml/autofill_service" />
         </service>
+        <activity android:name=".BridgeActivity" android:exported="true" android:excludeFromRecents="true" android:label="Vault">
+            <intent-filter><action android:name="dev.wonderdesk.vault.PICK" /><action android:name="dev.wonderdesk.vault.SAVE" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </activity>
     </application>
 </manifest>

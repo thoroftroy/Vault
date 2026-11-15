@@ -150,6 +150,7 @@ abstract class WonderActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
         super.onCreate(savedInstanceState)
+        FrameworkBugGuard.install()
         if (secure) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         // Decode the app's artwork (toolbar, About) in the background so no screen waits for it.
         val app = applicationContext
@@ -1362,4 +1363,24 @@ fun FitText(text: String, modifier: Modifier = Modifier, color: Color = Color.Un
                 if (r.didOverflowWidth && size.value > minSize.value) size = maxOf(minSize.value, size.value * 0.9f).sp else settled = true
             })
     }
+}
+
+/**
+ * Keeps known Android framework bugs from closing the app. Android 14/15 can throw a NullPointerException inside
+ * ScrollCaptureConnection when a scrolling screenshot starts as a screen closes; nothing in the app is wrong, so
+ * the main loop carries on. Every other exception is rethrown and reported as a crash as usual.
+ */
+object FrameworkBugGuard {
+    @Volatile private var installed = false
+    fun install() {
+        if (installed) return
+        installed = true
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            while (true) {
+                try { android.os.Looper.loop() }
+                catch (e: Throwable) { if (!isBenign(e)) throw e; android.util.Log.w("Wonderdesk", "Ignored Android framework bug", e) }
+            }
+        }
+    }
+    fun isBenign(e: Throwable): Boolean = e is NullPointerException && e.stackTrace.take(4).any { it.className.startsWith("android.view.ScrollCaptureConnection") }
 }

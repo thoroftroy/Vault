@@ -248,24 +248,28 @@ private fun UnlockedVault() {
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<Item?>(null) }
     var browsers by showBrowsers
+    var addCode by remember { mutableStateOf(false) }
+    if (addCode) AddCodeDialog(onDismiss = { addCode = false })
     if (browsers) { BrowsersScreen(onBack = { browsers = false }); return }
     val item = open?.let { id -> Vault.items.find { it.id == id } }
     editing?.let { e -> EditItem(e, onClose = { editing = null }, onSaved = { saved -> editing = null; open = saved.id }); return }
     if (item != null) { ItemDetail(item, onBack = { open = null }, onEdit = { editing = item }); return }
     WonderApp(needs = APP_NEEDS, 
         appName = "Vault", about = ABOUT,
-        tabs = listOf(WonderTab("items", "Passwords", WonderIcons.Key), WonderTab("gen", "Generator", WonderIcons.Password), WonderTab("health", "Health", WonderIcons.Shield)),
+        tabs = listOf(WonderTab("items", "Passwords", WonderIcons.Key), WonderTab("codes", "Codes", WonderIcons.Timer), WonderTab("gen", "Generator", WonderIcons.Password), WonderTab("health", "Health", WonderIcons.Shield)),
         selectedTab = tab, onTab = { tab = it; Vault.touch() },
-        title = when (tab) { "gen" -> "Generator"; "health" -> "Password health"; else -> "Vault" },
+        title = when (tab) { "codes" -> "Authenticator"; "gen" -> "Generator"; "health" -> "Password health"; else -> "Vault" },
         actions = {
             if (tab == "items") ToolbarButton(WonderIcons.Download, "Import passwords from a browser", { browsers = true })
             if (tab == "items") ToolbarButton(WonderIcons.Add, "Add login", { editing = Item() })
+            if (tab == "codes") ToolbarButton(WonderIcons.Add, "Add a code", { addCode = true })
             ToolbarButton(WonderIcons.Lock, "Lock now", { Vault.lock() })
         },
         settings = { VaultSettings() },
         menu = listOf(WonderMenuItem("Import from a browser or password manager…", WonderIcons.Download) { browsers = true }, WonderMenuItem("Send passwords to a browser", WonderIcons.Language) { browsers = true }),
     ) {
         when (tab) {
+            "codes" -> CodesPane(onOpen = { open = it.id }, onAdd = { addCode = true })
             "gen" -> GeneratorPane(onUse = { pw -> editing = Item(pw = pw) })
             "health" -> HealthPane(onOpen = { open = it.id })
             else -> ItemsPane(onOpen = { open = it.id }, onNew = { editing = Item() })

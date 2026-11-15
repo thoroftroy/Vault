@@ -1,5 +1,11 @@
 # Vault changelog
 
+## v0.6.11
+
+- New Codes tab: Vault is an authenticator now. Every two-factor code in one list, refreshing by themselves with a countdown; tap one to copy it. Works with any website that offers an authenticator app
+- Add a code by scanning its QR code with the camera, by picking a screenshot of the QR, or by typing the setup key or pasting an otpauth:// link; save it as a new login or add it to one you already have
+- Imports Google Authenticator exports (the Transfer accounts QR), so all your codes move over in one scan
+
 ## v0.6.10
 
 - Import guides tell the truth: Firefox and Edge for Android can't export passwords, so their guides walk you through exporting on a computer instead; Samsung only exports an encrypted .spass file, and the guide says so

@@ -1,5 +1,12 @@
 # Vault changelog
 
+## v0.6.10
+
+- Import guides tell the truth: Firefox and Edge for Android can't export passwords, so their guides walk you through exporting on a computer instead; Samsung only exports an encrypted .spass file, and the guide says so
+- Every browser is listed in Import and export, not just the ones on this phone
+- Long guides scroll instead of being cut off
+- Titles shrink to fit instead of being cut off
+
 ## v0.6.9
 
 - Leaked-password check on the Health tab: finds passwords that appear in known data breaches (Have I Been Pwned). Only the first 5 characters of a scrambled copy of each password leave your phone, and only when you tap Check

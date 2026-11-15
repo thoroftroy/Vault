@@ -6,20 +6,33 @@ import android.net.Uri
 /**
  * Moving passwords between Vault and the browsers.
  *
- * Android doesn't let one app read the passwords another app saved, so Chrome, Firefox and Google
- * Password Manager are reached through their own export files (CSV). Vault reads every common
+ * Android doesn't let one app read the passwords another app saved, so passwords come over through
+ * the browser's own export file (CSV), made on the phone where the browser allows it, or on a computer. Vault reads every common
  * format, merges duplicates, and can delete the plain-text export afterwards.
  */
 object BrowserPasswords {
-    data class Browser(val name: String, val pkg: String?, val steps: String)
+    /**
+     * @param onPhone true when the Android app itself can save an export file. Firefox, Edge and Samsung
+     * Internet can't (checked Nov 2026), so their guide explains the real route instead of inventing menus.
+     */
+    data class Browser(val name: String, val pkg: String?, val onPhone: Boolean, val summary: String, val steps: List<String>, val note: String = "")
 
     val BROWSERS = listOf(
-        Browser("Google Password Manager", "com.google.android.gms", "Opens passwords.google.com: Settings ⚙ → Export passwords → Export. The file goes to Downloads."),
-        Browser("Chrome", "com.android.chrome", "In Chrome: ⋮ → Settings → Google Password Manager → Settings → Export passwords."),
-        Browser("Firefox", "org.mozilla.firefox", "In Firefox: ⋮ → Passwords → ⋮ (top right) → Export passwords."),
-        Browser("Samsung Internet", "com.sec.android.app.sbrowser", "In Samsung Internet: ☰ → Settings → Personal browsing data → Usernames and passwords → ⋮ → Export."),
-        Browser("Edge", "com.microsoft.emmx", "In Edge: … → Settings → Passwords → ⋮ → Export passwords."),
-        Browser("Brave", "com.brave.browser", "In Brave: ⋮ → Settings → Password manager → Settings → Export passwords."),
+        Browser("Google Password Manager", "com.google.android.gms", true, "Export a file from passwords.google.com",
+            listOf("Open passwords.google.com (Vault opens it for you)", "Tap Settings ⚙", "Tap Export passwords, then Export", "The file is saved to Downloads")),
+        Browser("Chrome", "com.android.chrome", true, "Chrome on this phone can export a file",
+            listOf("In Chrome, tap ⋮ → Settings", "Tap Google Password Manager", "Tap Settings ⚙", "Tap Export passwords", "Save the file to Downloads")),
+        Browser("Brave", "com.brave.browser", true, "Brave on this phone can export a file",
+            listOf("In Brave, tap ⋮ → Settings", "Tap Password manager", "Tap ⋮ or Settings, then Export passwords", "Save the file to Downloads")),
+        Browser("Firefox", "org.mozilla.firefox", false, "Firefox for Android can't export passwords. Use Firefox on a computer",
+            listOf("On a computer, sign in to Firefox with the same Mozilla account and let Logins sync", "Open Settings → Passwords (or go to about:logins)", "Click ⋯ (top right) → Export passwords", "Move the .csv file to this phone (USB, Ripple, or any file share)"),
+            "Firefox, Fennec, Mull and Iceraven on Android have no export option, so the file has to come from a computer."),
+        Browser("Edge", "com.microsoft.emmx", false, "Edge for Android can't export passwords. Use Edge on a computer",
+            listOf("On a computer, sign in to Edge with the same Microsoft account and let Passwords sync", "Open Settings → Profiles → Passwords", "Click ⋯ → Export passwords", "Move the .csv file to this phone (USB, Ripple, or any file share)"),
+            "Microsoft says passwords can't be exported from Edge for Android or iPhone."),
+        Browser("Samsung Internet", "com.sec.android.app.sbrowser", false, "Samsung only exports an encrypted .spass file other apps can't read",
+            listOf("If the same passwords are also in Chrome or Google Password Manager, export from there instead", "Otherwise, sign in to each site with Vault as your autofill service and let Vault save them as you go"),
+            "Samsung Pass exports only its own encrypted .spass format, so no other password manager can import it directly."),
     )
 
     fun installed(c: Context): List<Browser> = BROWSERS.filter { b -> b.pkg == "com.google.android.gms" || runCatching { c.packageManager.getPackageInfo(b.pkg!!, 0) }.isSuccess }

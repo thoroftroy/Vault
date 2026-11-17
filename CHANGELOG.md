@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.17
+
+- Unlocking now says what it is working on while it checks the password
+
 ## v0.6.16
 
 - Settings are grouped under clear headings: privacy, master password and new logins

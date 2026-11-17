@@ -179,7 +179,7 @@ fun UnlockPane(onUnlocked: () -> Unit) {
                 if (Recovery.enabled(context)) WButton("Forgot password? Use recovery code", { recovery = true }, kind = ButtonKind.Plain)
             }
         }
-        if (busy) AquaProgress(null, Modifier.fillMaxWidth())
+        if (busy) { Text("Unlocking your vault", style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center); Text("Working out your key from the master password, a second or two on purpose", style = MaterialTheme.typography.bodySmall, color = p.secondaryText, textAlign = TextAlign.Center); AquaProgress(null, Modifier.fillMaxWidth()) }
         error?.let { Text(it, color = p.danger, textAlign = TextAlign.Center) }
     }
     importUri?.let { uri ->

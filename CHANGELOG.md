@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.14
+
+- New setting: hide a shown password again after 5, 15 or 30 seconds, or never
+
 ## v0.6.13
 
 - New settings: how long copied passwords stay on the clipboard, and a switch to block screenshots and screen recording

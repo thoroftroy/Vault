@@ -338,6 +338,8 @@ private fun ItemDetail(i: Item, onBack: () -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
     val p = wonderPalette()
     var reveal by remember { mutableStateOf(false) }
+    val revealCtx = LocalContext.current
+    LaunchedEffect(reveal) { if (reveal) { val sec = revealCtx.vaultPrefs().getInt("revealSec", 15); if (sec > 0) { kotlinx.coroutines.delay(sec * 1000L); reveal = false } } }
     var confirmDelete by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     WonderApp(appName = "Vault", about = ABOUT, title = i.title.ifBlank { "Login" }, onBack = onBack,
@@ -591,6 +593,10 @@ private fun VaultSettings() {
         var clip by remember { mutableIntStateOf(prefs.getInt("clipSeconds", 30)) }
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Clear copied passwords after", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10 to "10 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 0 to "Never").forEach { (v, n) -> Chip(n, clip == v, { clip = v; prefs.edit().putInt("clipSeconds", v).apply() }) } } }
+        PanelDivider()
+        var rs by remember { mutableIntStateOf(prefs.getInt("revealSec", 15)) }
+        Column(Modifier.padding(16.dp, 10.dp)) { Text("Hide a shown password again after", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(5 to "5 s", 15 to "15 s", 30 to "30 s", 0 to "Never").forEach { (v, n) -> Chip(n, rs == v, { rs = v; prefs.edit().putInt("revealSec", v).apply() }) } } }
         PanelDivider()
         var shots by remember { mutableStateOf(prefs.getBoolean("noShots", false)) }
         SwitchRow("Block screenshots and screen recording", shots, { shots = it; prefs.edit().putBoolean("noShots", it).apply()

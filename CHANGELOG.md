@@ -1,5 +1,11 @@
 # Vault changelog
 
+## v0.6.13
+
+- New settings: how long copied passwords stay on the clipboard, and a switch to block screenshots and screen recording
+- Text size and accent colour chosen in Control Room now apply here
+- New Rotate with the phone switch in Settings
+
 ## v0.6.12
 
 - Loading screens now say what they are doing instead of showing a bare spinner

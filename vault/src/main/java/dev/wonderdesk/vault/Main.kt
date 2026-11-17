@@ -68,16 +68,18 @@ private const val ABOUT = "Vault keeps your passwords encrypted on this phone wi
 private fun Context.vaultPrefs() = getSharedPreferences("vault", Context.MODE_PRIVATE)
 
 /** Copies with Android's sensitive flag and clears after [seconds] if nothing else was copied. */
-fun Context.copySecret(label: String, value: String, seconds: Int = 30) {
+fun Context.copySecret(label: String, value: String, seconds: Int = vaultPrefs().getInt("clipSeconds", 30)) {
     val cm = getSystemService(ClipboardManager::class.java)
     val clip = ClipData.newPlainText(label, value)
     clip.description.extras = PersistableBundle().apply { putBoolean(if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE else "android.content.extra.IS_SENSITIVE", true) }
     cm.setPrimaryClip(clip)
-    android.os.Handler(mainLooper).postDelayed({ if (cm.primaryClip?.getItemAt(0)?.text?.toString() == value) runCatching { cm.clearPrimaryClip() } }, seconds * 1000L)
+    if (seconds > 0) android.os.Handler(mainLooper).postDelayed({ if (cm.primaryClip?.getItemAt(0)?.text?.toString() == value) runCatching { cm.clearPrimaryClip() } }, seconds * 1000L)
 }
 
 @Composable
 fun VaultApp() {
+    run { val c = LocalContext.current; val on = c.vaultPrefs().getBoolean("noShots", false)
+        (c as? android.app.Activity)?.window?.let { w -> if (on) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) } }
     val context = LocalContext.current
     Vault.init(context)
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -585,6 +587,15 @@ private fun VaultSettings() {
                 }
             }
         }
+        PanelDivider()
+        var clip by remember { mutableIntStateOf(prefs.getInt("clipSeconds", 30)) }
+        Column(Modifier.padding(16.dp, 10.dp)) { Text("Clear copied passwords after", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10 to "10 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 0 to "Never").forEach { (v, n) -> Chip(n, clip == v, { clip = v; prefs.edit().putInt("clipSeconds", v).apply() }) } } }
+        PanelDivider()
+        var shots by remember { mutableStateOf(prefs.getBoolean("noShots", false)) }
+        SwitchRow("Block screenshots and screen recording", shots, { shots = it; prefs.edit().putBoolean("noShots", it).apply()
+            (context as? android.app.Activity)?.window?.let { w -> if (it) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) } },
+            subtitle = "Also hides Vault in the recent apps view", icon = WonderIcons.Lock, tint = Color(0xFFE5483C))
         PanelDivider()
         ListRow("Change master password", icon = WonderIcons.Password, tint = Color(0xFF8E44AD), chevron = true, onClick = { askMaster = "rotate" })
     }

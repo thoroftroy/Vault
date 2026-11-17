@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.15
+
+- New settings: the username or email filled in for new logins
+
 ## v0.6.14
 
 - New setting: hide a shown password again after 5, 15 or 30 seconds, or never

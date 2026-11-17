@@ -263,7 +263,7 @@ private fun UnlockedVault() {
         title = when (tab) { "codes" -> "Authenticator"; "gen" -> "Generator"; "health" -> "Password health"; else -> "Vault" },
         actions = {
             if (tab == "items") ToolbarButton(WonderIcons.Download, "Import passwords from a browser", { browsers = true })
-            if (tab == "items") ToolbarButton(WonderIcons.Add, "Add login", { editing = Item() })
+            if (tab == "items") ToolbarButton(WonderIcons.Add, "Add login", { editing = newItem(context) })
             if (tab == "codes") ToolbarButton(WonderIcons.Add, "Add a code", { addCode = true })
             ToolbarButton(WonderIcons.Lock, "Lock now", { Vault.lock() })
         },
@@ -274,7 +274,7 @@ private fun UnlockedVault() {
             "codes" -> CodesPane(onOpen = { open = it.id }, onAdd = { addCode = true })
             "gen" -> GeneratorPane(onUse = { pw -> editing = Item(pw = pw) })
             "health" -> HealthPane(onOpen = { open = it.id })
-            else -> ItemsPane(onOpen = { open = it.id }, onNew = { editing = Item() })
+            else -> ItemsPane(onOpen = { open = it.id }, onNew = { editing = newItem(context) })
         }
     }
 }
@@ -594,6 +594,10 @@ private fun VaultSettings() {
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Clear copied passwords after", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10 to "10 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 0 to "Never").forEach { (v, n) -> Chip(n, clip == v, { clip = v; prefs.edit().putInt("clipSeconds", v).apply() }) } } }
         PanelDivider()
+        var du by remember { mutableStateOf(prefs.getString("defUser", "") ?: "") }
+        Column(Modifier.padding(16.dp, 10.dp)) { Text("Username or email filled in for new logins", style = MaterialTheme.typography.labelLarge)
+            OutlinedTextField(du, { du = it; prefs.edit().putString("defUser", it).apply() }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Leave empty for none") }) }
+        PanelDivider()
         var rs by remember { mutableIntStateOf(prefs.getInt("revealSec", 15)) }
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Hide a shown password again after", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(5 to "5 s", 15 to "15 s", 30 to "30 s", 0 to "Never").forEach { (v, n) -> Chip(n, rs == v, { rs = v; prefs.edit().putInt("revealSec", v).apply() }) } } }
@@ -787,3 +791,5 @@ object Breach {
     }
     private fun sha1(s: String) = java.security.MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02X".format(it) }
 }
+
+private fun newItem(c: android.content.Context): Item { val p = c.vaultPrefs(); return Item(category = p.getString("defCat", "Login") ?: "Login", user = p.getString("defUser", "") ?: "") }

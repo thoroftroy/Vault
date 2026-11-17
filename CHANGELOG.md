@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.16
+
+- Settings are grouped under clear headings: privacy, master password and new logins
+
 ## v0.6.15
 
 - New settings: the username or email filled in for new logins

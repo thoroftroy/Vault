@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.12
+
+- Loading screens now say what they are doing instead of showing a bare spinner
+- Wording tidied so no sentence needs a dash
+
 ## v0.6.11
 
 - New Codes tab: Vault is an authenticator now. Every two-factor code in one list, refreshing by themselves with a countdown; tap one to copy it. Works with any website that offers an authenticator app

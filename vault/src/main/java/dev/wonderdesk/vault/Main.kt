@@ -88,8 +88,8 @@ fun VaultApp() {
     DisposableEffect(owner) {
         val o = LifecycleEventObserver { _, e ->
             when (e) {
-                Lifecycle.Event.ON_STOP -> { stoppedAt = System.currentTimeMillis(); if (lockAfter == 0) Vault.lock() }
-                Lifecycle.Event.ON_START -> if (Vault.unlocked && stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > lockAfter * 1000L) Vault.lock()
+                Lifecycle.Event.ON_STOP -> { stoppedAt = System.currentTimeMillis(); if (lockAfter == 0 && Vault.mayLockNow()) Vault.lock() }
+                Lifecycle.Event.ON_START -> { if (Vault.unlocked && stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > lockAfter * 1000L && Vault.mayLockNow()) Vault.lock(); Vault.keepOpenUntil = 0L }
                 else -> {}
             }
         }
@@ -386,7 +386,7 @@ private fun ItemDetail(i: Item, onBack: () -> Unit, onEdit: () -> Unit) {
                 if (i.url.isNotBlank()) {
                     PanelDivider()
                     ListRow("Website", subtitle = i.url, icon = WonderIcons.Public, tint = Color(0xFF16A085), chevron = true, onClick = {
-                        context.launchSafely(Intent(Intent.ACTION_VIEW, Uri.parse(if (i.url.contains("://")) i.url else "https://${i.url}"))) {}
+                        context.launchKeeping(Intent(Intent.ACTION_VIEW, Uri.parse(if (i.url.contains("://")) i.url else "https://${i.url}"))) {}
                     })
                 }
             }
@@ -576,7 +576,7 @@ private fun VaultSettings() {
     }
     Panel(title = "Unlocking") {
         val bioReady = remember { BioKey.available(context) }
-        SwitchRow("Unlock with fingerprint or face", bio, { on -> if (on) { if (bioReady) askMaster = "bio" else context.launchSafely(BioKey.enrollIntent()) {} } else { BioKey.disable(context); bio = false } },
+        SwitchRow("Unlock with fingerprint or face", bio, { on -> if (on) { if (bioReady) askMaster = "bio" else context.launchKeeping(BioKey.enrollIntent()) {} } else { BioKey.disable(context); bio = false } },
             subtitle = if (bioReady) (if (bio) "On: Vault opens with your fingerprint" else "Off") else "Add a fingerprint or face in Android settings first (tap to set up)", icon = WonderIcons.Lock, tint = Color(0xFF2E9E44))
         PanelDivider()
         var menu by remember { mutableStateOf(false) }
@@ -614,7 +614,7 @@ private fun VaultSettings() {
     Panel(title = "Autofill", footer = "Vault fills usernames and passwords in Firefox and other apps, and offers to save new logins when you sign in.") {
         ListRow(if (autofillOn) "Vault is your autofill service" else "Use Vault for autofill", subtitle = if (autofillOn) "On" else "Tap to choose Vault in Android settings",
             icon = WonderIcons.Bolt, tint = Color(0xFFF2A516), chevron = !autofillOn, onClick = {
-                context.launchSafely(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {}
+                context.launchKeeping(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {}
             })
     }
     Panel(title = "Browsers") {
@@ -625,7 +625,7 @@ private fun VaultSettings() {
         ListRow(if (Recovery.enabled(context)) "New recovery code" else "Create a recovery code", subtitle = if (Recovery.enabled(context)) "A code is set up" else "Unlocks Vault if you forget your password",
             icon = WonderIcons.Key, tint = Color(0xFFE5483C), chevron = true, onClick = { askMaster = "recovery" })
         PanelDivider()
-        ListRow("Export encrypted backup", subtitle = "Same format as Vault for Linux", icon = WonderIcons.Download, tint = Color(0xFF16A085), chevron = true, onClick = { exporter.launch("vault-backup.json") })
+        ListRow("Export encrypted backup", subtitle = "Same format as Vault for Linux", icon = WonderIcons.Download, tint = Color(0xFF16A085), chevron = true, onClick = { Vault.keepOpen(); exporter.launch("vault-backup.json") })
         PanelDivider()
         ListRow("Trash", subtitle = "${Vault.trash.size} deleted login${if (Vault.trash.size == 1) "" else "s"}", icon = WonderIcons.Delete, tint = Color(0xFF7A7F87), chevron = true, onClick = { trash = true })
     }
@@ -722,7 +722,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
             }
             Panel(title = "2. Import the file", footer = "Reads CSV exports from Chrome, Google Password Manager, Brave, Firefox and Edge (desktop), Bitwarden, 1Password, LastPass, Dashlane, Proton Pass and KeePass. Duplicates are merged; changed passwords keep the old one in history.") {
                 ListRow("Choose the exported file", subtitle = "Usually in Downloads, ending in .csv", icon = WonderIcons.UploadFile, tint = Color(0xFF2E9E44), chevron = true,
-                    onClick = { picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
+                    onClick = { Vault.keepOpen(); picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
             }
             Panel(title = "Send Vault's passwords to a browser") {
                 ListRow("Export for Chrome, Google or Firefox", subtitle = "A CSV file the browser can import", icon = WonderIcons.Download, tint = Color(0xFF8E44AD), chevron = true, onClick = { exportWarn = true })
@@ -730,7 +730,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
             Panel(title = "Let Vault do the filling", footer = "With Vault as your autofill service, browsers ask Vault instead of saving passwords themselves. Then turn off “Save passwords” in each browser so there's one place to manage them.") {
                 val af = remember { context.getSystemService(AutofillManager::class.java) }
                 ListRow(if (af?.hasEnabledAutofillServices() == true) "Vault fills passwords" else "Use Vault for autofill", icon = WonderIcons.Bolt, tint = Color(0xFFF2A516), chevron = true,
-                    onClick = { context.launchSafely(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {} })
+                    onClick = { context.launchKeeping(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {} })
             }
         }
     }
@@ -740,15 +740,15 @@ private fun BrowsersScreen(onBack: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (!b.onPhone) Text(b.note.ifBlank { b.summary }, style = MaterialTheme.typography.bodyMedium, color = p.text)
                 Panel {
-                    if (b.onPhone) { ListRow("Open ${b.name}", icon = WonderIcons.OpenInNew, tint = p.accent, chevron = true, onClick = { BrowserPasswords.open(context, b) }); PanelDivider() }
+                    if (b.onPhone) { ListRow("Open ${b.name}", icon = WonderIcons.OpenInNew, tint = p.accent, chevron = true, onClick = { Vault.keepOpen(); BrowserPasswords.open(context, b) }); PanelDivider() }
                     b.steps.forEachIndexed { i, st -> if (i > 0) PanelDivider(); ListRow("${i + 1}. $st", icon = WonderIcons.ChevronRight, tint = p.secondaryText) }
                     PanelDivider()
                     ListRow("Then choose the file here", subtitle = "Ends in .csv, usually in Downloads", icon = WonderIcons.UploadFile, tint = Color(0xFF2E9E44), chevron = true,
-                        onClick = { guide = null; picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
+                        onClick = { guide = null; Vault.keepOpen(); picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
                 }
                 if (b.onPhone) Text("${b.name} may ask for your screen lock before it exports. Vault then offers to delete the file, since it holds your passwords in plain text.", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
             }
-        }, confirmButton = { TextButton(onClick = { guide = null; picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) }) { Text("Choose the file") } },
+        }, confirmButton = { TextButton(onClick = { guide = null; Vault.keepOpen(); picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) }) { Text("Choose the file") } },
             dismissButton = { TextButton(onClick = { guide = null }) { Text("Close") } })
     }
     preview?.let { (uri, parsed) ->
@@ -771,7 +771,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
         }) { Text("Delete file", color = p.danger) } }, dismissButton = { TextButton(onClick = { done = null }) { Text("Keep") } })
     }
     if (exportWarn) ConfirmDialog("Export ${Vault.items.size} passwords?", "The file isn't encrypted. Anyone who opens it can read every password. Import it into your browser right away, then delete it.",
-        "Export", onConfirm = { saver.launch("vault-passwords.csv") }, onDismiss = { exportWarn = false })
+        "Export", onConfirm = { Vault.keepOpen(); saver.launch("vault-passwords.csv") }, onDismiss = { exportWarn = false })
 }
 
 
@@ -795,3 +795,6 @@ object Breach {
 }
 
 private fun newItem(c: android.content.Context): Item { val p = c.vaultPrefs(); return Item(category = p.getString("defCat", "Login") ?: "Login", user = p.getString("defUser", "") ?: "") }
+
+/** Starts another screen and keeps the vault unlocked while you are away, so you land back where you were. */
+fun android.content.Context.launchKeeping(intent: Intent, report: (String) -> Unit) { Vault.keepOpen(); launchSafely(intent, report) }

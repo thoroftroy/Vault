@@ -62,6 +62,11 @@ object Vault {
     var unlocked by mutableStateOf(false); private set
     private var lastActivity = 0L
 
+    /** Until this time, leaving the app (file picker, a browser's export screen, Android settings) does not lock the vault. */
+    @Volatile var keepOpenUntil = 0L
+    fun keepOpen(minutes: Int = 10) { keepOpenUntil = System.currentTimeMillis() + minutes * 60_000L }
+    fun mayLockNow() = System.currentTimeMillis() > keepOpenUntil
+
     fun init(context: Context) {
         if (::engine.isInitialized) return
         val dir = context.filesDir

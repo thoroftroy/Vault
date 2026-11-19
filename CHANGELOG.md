@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.18
+
+- Importing passwords from Google Password Manager, Chrome or any other export no longer locks the vault: picking the file, opening a browser to export, and Android settings screens now leave Vault unlocked while you are away, so the import goes through
+
 ## v0.6.17
 
 - Unlocking now says what it is working on while it checks the password

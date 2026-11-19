@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.19
+
+- Fixed autofill suggestions never appearing: the little Vault popup under a username or password box could not be shown on newer Android. It now shows in every browser and app, with your matching logins (or Unlock Vault)
+
 ## v0.6.18
 
 - Importing passwords from Google Password Manager, Chrome or any other export no longer locks the vault: picking the file, opening a browser to export, and Android settings screens now leave Vault unlocked while you are away, so the import goes through

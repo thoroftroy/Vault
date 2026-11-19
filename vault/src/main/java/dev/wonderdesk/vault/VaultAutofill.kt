@@ -52,8 +52,8 @@ fun parseForm(structure: AssistStructure): LoginForm {
     return LoginForm(user, pass, web, structure.activityComponent.packageName, userVal, passVal)
 }
 
-private fun presentation(c: Context, title: String, sub: String): RemoteViews = RemoteViews(c.packageName, android.R.layout.simple_list_item_2).apply {
-    setTextViewText(android.R.id.text1, title); setTextViewText(android.R.id.text2, sub)
+private fun presentation(c: Context, title: String, sub: String): RemoteViews = RemoteViews(c.packageName, R.layout.autofill_item).apply {
+    setTextViewText(R.id.af_title, title); setTextViewText(R.id.af_sub, sub)
 }
 
 fun dataset(c: Context, form: LoginForm, item: Item): Dataset {

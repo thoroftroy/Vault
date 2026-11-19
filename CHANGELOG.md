@@ -1,5 +1,11 @@
 # Vault changelog
 
+## v0.6.20
+
+- Autofill no longer opens the whole Vault. A small sheet slides up over the page or app: unlock with your fingerprint or password and, if only one login fits the site, it fills straight away with no list to pick from
+- It shows just the logins for that site or app, with a search for anything else. Logins saved with a name but no web address (like "Google") now match their site too
+- New My details for forms in Settings: save your name, address, phone, company and card once, and Vault offers to fill them on forms that ask
+
 ## v0.6.19
 
 - Fixed autofill suggestions never appearing: the little Vault popup under a username or password box could not be shown on newer Android. It now shows in every browser and app, with your matching logins (or Unlock Vault)

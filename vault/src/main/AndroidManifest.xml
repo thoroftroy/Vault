@@ -7,7 +7,7 @@
         <activity android:name=".MainActivity" android:exported="true" android:resizeableActivity="true" android:launchMode="singleTask">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
-        <activity android:name=".AutofillPickActivity" android:exported="false" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.vault.autofill" />
+        <activity android:name=".AutofillPickActivity" android:exported="false" android:theme="@style/VaultSheet" android:windowSoftInputMode="adjustResize" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.vault.autofill" />
         <service android:name=".VaultAutofillService" android:exported="true" android:label="Vault" android:permission="android.permission.BIND_AUTOFILL_SERVICE">
             <intent-filter><action android:name="android.service.autofill.AutofillService" /></intent-filter>
             <meta-data android:name="android.autofill" android:resource="@xml/autofill_service" />

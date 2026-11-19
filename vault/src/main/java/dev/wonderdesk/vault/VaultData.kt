@@ -133,13 +133,18 @@ object Vault {
 
     fun rotate(current: String, replacement: String) { engine.rotate(current, replacement); persist(items) /* re-seal sidecar with new key */; persistTrash(trash) }
 
-    /** Logins that fit a website (by domain) or an app (by package name). */
+    /** Logins that fit a website (by domain) or an app (by package name). The best fits come first. */
     fun matches(webDomain: String?, pkg: String?): List<Item> {
-        val root = webDomain?.let { rootDomain(domainOf(it)) }
+        val host = webDomain?.let { domainOf(it) }
+        val root = host?.let { rootDomain(it) }
+        val rootName = root?.substringBefore('.')
         return items.filter { i ->
-            (root != null && i.domain.isNotEmpty() && rootDomain(i.domain) == root) ||
-                (pkg != null && (pkg in i.apps || (i.domain.isNotEmpty() && pkg.split('.').any { part -> part.length > 3 && rootDomain(i.domain).startsWith(part) })))
-        }.sortedByDescending { it.updated }
+            i.category != AutofillProfile.CAT && (
+                (root != null && i.domain.isNotEmpty() && rootDomain(i.domain) == root) ||
+                    // A login saved without a web address still fits when its name is the site's name.
+                    (rootName != null && rootName.length > 3 && i.domain.isEmpty() && i.title.lowercase().contains(rootName)) ||
+                    (pkg != null && (pkg in i.apps || (i.domain.isNotEmpty() && pkg.split('.').any { part -> part.length > 3 && rootDomain(i.domain).startsWith(part) }))))
+        }.sortedWith(compareByDescending<Item> { host != null && it.domain == host }.thenByDescending { it.updated })
     }
 }
 

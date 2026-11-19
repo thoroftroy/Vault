@@ -107,6 +107,21 @@ fun VaultApp() {
 /* ------------------------------------------------- unlock ------------------------------------------ */
 
 @Composable
+private fun DetailsDialog(onDismiss: () -> Unit) {
+    val toast = LocalToast.current
+    val values = remember { mutableStateMapOf<String, String>().also { it.putAll(AutofillProfile.get()) } }
+    WonderDialog(onDismissRequest = onDismiss, title = { Text("My details for forms") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Kept encrypted in Vault. Offered when a form asks for them; never sent anywhere.", style = MaterialTheme.typography.bodySmall)
+            AutofillProfile.FIELDS.forEach { (k, label) -> Field(values[k].orEmpty(), { values[k] = it }, label) }
+            Text("Card", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall)
+            AutofillProfile.CARD_FIELDS.forEach { (k, label) -> Field(values[k].orEmpty(), { values[k] = it }, label, keyboard = if (k == "cardName") KeyboardType.Text else KeyboardType.Number) }
+        }
+    }, confirmButton = { TextButton(onClick = { runCatching { AutofillProfile.save(values.toMap()) }.onFailure { toast(it.message ?: "Couldn't save") }; onDismiss() }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
 fun UnlockPane(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val p = wonderPalette()
@@ -284,9 +299,9 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
     val p = wonderPalette()
     var q by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("All") }
-    val cats = listOf("All", "Favorites") + Vault.items.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    val cats = listOf("All", "Favorites") + Vault.items.map { it.category }.filter { it.isNotBlank() && it != AutofillProfile.CAT }.distinct().sorted()
     val shown = Vault.items.filter { i ->
-        (q.isBlank() || i.title.contains(q, true) || i.user.contains(q, true) || i.url.contains(q, true) || i.notes.contains(q, true)) &&
+        i.category != AutofillProfile.CAT && (q.isBlank() || i.title.contains(q, true) || i.user.contains(q, true) || i.url.contains(q, true) || i.notes.contains(q, true)) &&
             when (filter) { "All" -> true; "Favorites" -> i.favorite; else -> i.category == filter }
     }
     if (Vault.items.isEmpty()) {
@@ -611,7 +626,10 @@ private fun VaultSettings() {
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Username or email filled in for new logins", style = MaterialTheme.typography.labelLarge)
             OutlinedTextField(du, { du = it; prefs.edit().putString("defUser", it).apply() }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Leave empty for none") }) }
     }
-    Panel(title = "Autofill", footer = "Vault fills usernames and passwords in Firefox and other apps, and offers to save new logins when you sign in.") {
+    var detailsOpen by remember { mutableStateOf(false) }
+    Panel(title = "Autofill", footer = "Vault fills usernames and passwords in browsers and apps, offers to save new logins when you sign in, and can fill your name, address, phone and card on forms.") {
+        ListRow("My details for forms", subtitle = if (AutofillProfile.get().isEmpty()) "Name, address, phone and card" else "Saved", icon = WonderIcons.Person, tint = Color(0xFF1E7FE8), chevron = true, onClick = { detailsOpen = true })
+        PanelDivider()
         ListRow(if (autofillOn) "Vault is your autofill service" else "Use Vault for autofill", subtitle = if (autofillOn) "On" else "Tap to choose Vault in Android settings",
             icon = WonderIcons.Bolt, tint = Color(0xFFF2A516), chevron = !autofillOn, onClick = {
                 context.launchKeeping(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))) {}
@@ -629,6 +647,7 @@ private fun VaultSettings() {
         PanelDivider()
         ListRow("Trash", subtitle = "${Vault.trash.size} deleted login${if (Vault.trash.size == 1) "" else "s"}", icon = WonderIcons.Delete, tint = Color(0xFF7A7F87), chevron = true, onClick = { trash = true })
     }
+    if (detailsOpen) DetailsDialog { detailsOpen = false }
     askMaster?.let { purpose ->
         var pw by remember { mutableStateOf("") }
         var next by remember { mutableStateOf("") }

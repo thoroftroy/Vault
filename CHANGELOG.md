@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.22
+
+- Polaris can ask Vault for a login and offer to save one: the same small sheet that unlocks Vault and lists only the logins for the site you are on (needs Polaris 0.6.0)
+
 ## v0.6.21
 
 - When a site and username you already have is saved with a different password, Vault now asks: Update (the old password stays in that login's history) or Keep both as two logins. Saving a login that is already stored says so instead of asking

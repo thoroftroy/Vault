@@ -33,8 +33,8 @@ import kotlinx.coroutines.withContext
 
 /** What we found on a form: the login fields, and any name, address, phone or card fields. */
 data class LoginForm(val user: AutofillId?, val pass: AutofillId?, val webDomain: String?, val pkg: String, val userValue: String? = null, val passValue: String? = null,
-    val fields: List<Pair<AutofillId, String>> = emptyList()) {
-    val hasLogin get() = user != null || pass != null
+    val fields: List<Pair<AutofillId, String>> = emptyList(), val forceLogin: Boolean = false) {
+    val hasLogin get() = user != null || pass != null || forceLogin
     val hasDetails get() = fields.any { it.second in AutofillProfile.PERSONAL_KEYS }
     val hasCard get() = fields.any { it.second in AutofillProfile.CARD_KEYS }
 }
@@ -157,7 +157,7 @@ class VaultAutofillService : AutofillService() {
 }
 
 /** A small sheet over whatever you were doing: unlock if needed, then pick. It never opens the whole Vault. */
-class AutofillPickActivity : WonderActivity() {
+open class AutofillPickActivity : WonderActivity() {
     override val secure = true
 
     @Suppress("DEPRECATION")
@@ -166,7 +166,9 @@ class AutofillPickActivity : WonderActivity() {
         val web = intent.getStringExtra("web"); val pkg = intent.getStringExtra("pkg").orEmpty()
         val saving = intent.getBooleanExtra("save", false)
         val fids = intent.getParcelableArrayListExtra<AutofillId>("fids").orEmpty(); val fkeys = intent.getStringArrayListExtra("fkeys").orEmpty()
-        val form = LoginForm(intent.getParcelableExtra("user"), intent.getParcelableExtra("pass"), web, pkg, fields = fids.zip(fkeys))
+        // Polaris asks for a login (or offers to save one) through this same sheet; the answer goes back as a result instead of into a form.
+        val loginMode = intent.getBooleanExtra("login", false)
+        val form = LoginForm(intent.getParcelableExtra("user"), intent.getParcelableExtra("pass"), web, pkg, fields = fids.zip(fkeys), forceLogin = loginMode)
         var unlocked by remember { mutableStateOf(Vault.unlocked) }
         val appName = remember { runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg) }
         val p = wonderPalette()
@@ -184,6 +186,7 @@ class AutofillPickActivity : WonderActivity() {
                     !unlocked -> CompactUnlock { unlocked = true }
                     saving -> SavePane(web, pkg, appName, intent.getStringExtra("userValue").orEmpty(), intent.getStringExtra("passValue").orEmpty()) { finish() }
                     else -> PickSheet(form) { item, ds ->
+                        if (loginMode) { if (item == null) cancel() else { setResult(RESULT_OK, Intent().putExtra("user", item.user).putExtra("pass", item.pw)); finish() }; return@PickSheet }
                         if (item != null && pkg.isNotEmpty() && web == null && pkg !in item.apps) runCatching { Vault.upsert(item.copy(apps = item.apps + pkg)) }
                         done(ds ?: item?.let { dataset(this@AutofillPickActivity, form, it) })
                     }
@@ -192,6 +195,9 @@ class AutofillPickActivity : WonderActivity() {
         }
     }
 }
+
+/** The same sheet, reachable by Polaris (same-signature apps only) to pick or save a browser login. */
+class LoginPickActivity : AutofillPickActivity()
 
 /** Fingerprint straight away if it is set up, otherwise just the master password. */
 @Composable

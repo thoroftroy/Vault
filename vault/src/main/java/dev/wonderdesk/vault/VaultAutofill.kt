@@ -237,7 +237,7 @@ private fun PickSheet(form: LoginForm, onPick: (Item?, Dataset?) -> Unit) {
     if (auto) { Text("Filling…", color = p.secondaryText); return }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (suggested.isNotEmpty()) {
-            Panel { suggested.forEachIndexed { i, it -> if (i > 0) PanelDivider(); ListRow(it.title.ifBlank { it.domain }, subtitle = it.user, leading = { LetterTile(it) }, onClick = { onPick(it, null) }) } }
+            Panel { suggested.forEachIndexed { i, it -> if (i > 0) PanelDivider(); ListRow(it.title.ifBlank { it.domain }, subtitle = it.user + if (suggested.count { o -> o.user == it.user } > 1) " · saved " + java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it.created)) else "", leading = { LetterTile(it) }, onClick = { onPick(it, null) }) } }
         }
         if (form.hasDetails && prof.isNotEmpty()) detailsDataset(context, form, prof, AutofillProfile.PERSONAL_KEYS, "My details", "")?.let { ds ->
             Panel { ListRow("Fill my details", subtitle = listOf(prof["first"], prof["last"], prof["line1"]).filterNot { it.isNullOrBlank() }.joinToString(" · "), icon = WonderIcons.Person, tint = androidx.compose.ui.graphics.Color(0xFF1E7FE8), onClick = { onPick(null, ds) }) }
@@ -261,27 +261,37 @@ private fun PickSheet(form: LoginForm, onPick: (Item?, Dataset?) -> Unit) {
 
 @Composable
 private fun SavePane(web: String?, pkg: String, appName: String, user: String, pass: String, done: () -> Unit) {
-    val existing = remember { Vault.matches(web, pkg).firstOrNull { it.user == user } }
+    val sameUser = remember { Vault.matches(web, pkg).filter { it.user == user } }
+    val existing = sameUser.firstOrNull()
+    val identical = sameUser.any { it.pw == pass }
     var title by remember { mutableStateOf(existing?.title ?: web?.let { rootDomain(it).substringBefore('.').replaceFirstChar(Char::uppercase) } ?: appName) }
     var u by remember { mutableStateOf(user) }
     val toast = LocalToast.current
+    fun save(base: Item?) {
+        runCatching {
+            Vault.upsert((base ?: Item()).copy(title = title.trim(), user = u.trim(), pw = pass, url = web?.let { "https://$it" } ?: base?.url.orEmpty(),
+                apps = if (web == null && pkg.isNotEmpty()) ((base?.apps ?: emptyList()) + pkg).distinct() else base?.apps ?: emptyList()))
+        }.onFailure { toast(it.message ?: "Couldn't save") }.onSuccess { done() }
+    }
     Page {
+        if (identical) {
+            Panel { Text("This login is already saved in Vault.", Modifier.padding(12.dp), style = MaterialTheme.typography.bodyLarge) }
+            WButton("Close", done, Modifier.fillMaxWidth())
+            return@Page
+        }
         Panel {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(if (existing != null) "Update the saved password for ${existing.title}?" else "Save this login so Vault can fill it next time?", style = MaterialTheme.typography.bodyLarge)
+                Text(if (existing != null) "The password for ${existing.title} (${existing.user.ifBlank { "this login" }}) is different from the one saved." else "Save this login so Vault can fill it next time?", style = MaterialTheme.typography.bodyLarge)
                 Field(title, { title = it }, "Name")
                 Field(u, { u = it }, "Username or email")
                 Text("Password: " + "•".repeat(pass.length.coerceAtMost(16)), style = MaterialTheme.typography.bodyMedium)
+                if (existing != null) Text("Update replaces the saved password and keeps the old one in that login's history. Keep both saves this as a second login for the same site.", style = MaterialTheme.typography.bodySmall, color = wonderPalette().secondaryText)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             WButton("Not now", done, Modifier.weight(1f))
-            WButton(if (existing != null) "Update" else "Save", {
-                runCatching {
-                    Vault.upsert((existing ?: Item()).copy(title = title.trim(), user = u.trim(), pw = pass, url = web?.let { "https://$it" } ?: existing?.url.orEmpty(),
-                        apps = if (web == null && pkg.isNotEmpty()) ((existing?.apps ?: emptyList()) + pkg).distinct() else existing?.apps ?: emptyList()))
-                }.onFailure { toast(it.message ?: "Couldn't save") }.onSuccess { done() }
-            }, Modifier.weight(1f), kind = ButtonKind.Primary)
+            if (existing != null) WButton("Keep both", { save(null) }, Modifier.weight(1f))
+            WButton(if (existing != null) "Update" else "Save", { save(existing) }, Modifier.weight(1f), kind = ButtonKind.Primary)
         }
     }
 }

@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.21
+
+- When a site and username you already have is saved with a different password, Vault now asks: Update (the old password stays in that login's history) or Keep both as two logins. Saving a login that is already stored says so instead of asking
+- In the autofill sheet, logins with the same username are told apart by the date they were saved
+
 ## v0.6.20
 
 - Autofill no longer opens the whole Vault. A small sheet slides up over the page or app: unlock with your fingerprint or password and, if only one login fits the site, it fills straight away with no list to pick from

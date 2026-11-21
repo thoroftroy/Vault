@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.6.26
+
+- The password strength meter no longer says Very weak before you have typed anything
+- At night the animated background gets a stronger wash, so text stays easy to read on dark scenes
+
 ## v0.6.25
 
 - Each app's animated scene now has its own drifting symbols (maths signs in Abacus, notes in Echo, arrows in Wayfinder and so on), and the scene is a little clearer while text stays easy to read

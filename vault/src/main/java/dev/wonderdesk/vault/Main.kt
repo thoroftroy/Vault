@@ -181,7 +181,7 @@ fun UnlockPane(onUnlocked: () -> Unit) {
                 onDone = { if (!creating && pw.isNotEmpty()) attempt(pw) { Vault.unlock(pw) } })
             if (creating) {
                 val (s, label) = Generator.strength(pw)
-                StrengthBar(s, label)
+                if (pw.isNotEmpty()) StrengthBar(s, label)
                 Field(confirm, { confirm = it }, "Confirm master password", visual = PasswordVisualTransformation(), keyboard = KeyboardType.Password,
                     isError = confirm.isNotEmpty() && confirm != pw)
                 WButton("Create vault", { attempt(pw) { Vault.create(pw) } }, Modifier.fillMaxWidth(), kind = ButtonKind.Primary,
@@ -488,7 +488,7 @@ private fun GeneratorPane(compact: Boolean = false, onUse: (String) -> Unit) {
         Panel {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SelectionContainer { Text(pw, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace, fontSize = 22.sp)) }
-                val (l, s) = Generator.strength(pw); StrengthBar(l, s)
+                if (pw.isNotEmpty()) { val (l, s) = Generator.strength(pw); StrengthBar(l, s) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WButton("New", { tick++ }, icon = WonderIcons.Refresh)
                     WButton("Copy", { context.copySecret("Password", pw); toast("Copied") }, icon = WonderIcons.ContentCopy)

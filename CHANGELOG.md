@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.6.23
+
+- Fixed a gap above the keyboard in screens with a bottom tab bar: the tab bar now steps aside while you type, so you can see what you are writing
+
 ## v0.6.22
 
 - Polaris can ask Vault for a login and offer to save one: the same small sheet that unlocks Vault and lists only the logins for the site you are on (needs Polaris 0.6.0)

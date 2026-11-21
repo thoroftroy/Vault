@@ -396,7 +396,7 @@ private fun ItemDetail(i: Item, onBack: () -> Unit, onEdit: () -> Unit) {
                             code?.let { Text("${it.second}s", color = if (it.second <= 5) p.danger else p.secondaryText, style = MaterialTheme.typography.labelMedium) }
                             IconButton(onClick = { code?.let { copy("Code", it.first) } }) { Icon(WonderIcons.ContentCopy, "Copy code") }
                         }
-                    })
+                    }, help = "A 6-digit code that changes every 30 seconds and proves it's you when logging in.")
                 }
                 if (i.url.isNotBlank()) {
                     PanelDivider()
@@ -592,12 +592,12 @@ private fun VaultSettings() {
     Panel(title = "Unlocking") {
         val bioReady = remember { BioKey.available(context) }
         SwitchRow("Unlock with fingerprint or face", bio, { on -> if (on) { if (bioReady) askMaster = "bio" else context.launchKeeping(BioKey.enrollIntent()) {} } else { BioKey.disable(context); bio = false } },
-            subtitle = if (bioReady) (if (bio) "On: Vault opens with your fingerprint" else "Off") else "Add a fingerprint or face in Android settings first (tap to set up)", icon = WonderIcons.Lock, tint = Color(0xFF2E9E44))
+            subtitle = if (bioReady) (if (bio) "On: Vault opens with your fingerprint" else "Off") else "Add a fingerprint or face in Android settings first (tap to set up)", icon = WonderIcons.Lock, tint = Color(0xFF2E9E44), help = "Opens Vault with your fingerprint or face instead of typing the master password. The password still works.")
         PanelDivider()
         var menu by remember { mutableStateOf(false) }
         Box {
             ListRow("Lock when I leave the app", subtitle = when (lockAfter) { 0 -> "Immediately"; 60 -> "After 1 minute"; 300 -> "After 5 minutes"; else -> "After ${lockAfter / 60} minutes" },
-                icon = WonderIcons.Timer, tint = Color(0xFF1E7FE8), chevron = true, onClick = { menu = true })
+                icon = WonderIcons.Timer, tint = Color(0xFF1E7FE8), chevron = true, onClick = { menu = true }, help = "Asks for your master password again whenever you switch away from Vault.")
             DropdownMenu(menu, { menu = false }, Modifier.background(p.panel)) {
                 listOf(0 to "Immediately", 60 to "After 1 minute", 300 to "After 5 minutes", 900 to "After 15 minutes").forEach { (s, l) ->
                     DropdownMenuItem({ Text(l) }, { lockAfter = s; prefs.edit().putInt("lockAfter", s).apply(); menu = false })
@@ -617,7 +617,7 @@ private fun VaultSettings() {
         var shots by remember { mutableStateOf(prefs.getBoolean("noShots", false)) }
         SwitchRow("Block screenshots and screen recording", shots, { shots = it; prefs.edit().putBoolean("noShots", it).apply()
             (context as? android.app.Activity)?.window?.let { w -> if (it) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) } },
-            subtitle = "Also hides Vault in the recent apps view", icon = WonderIcons.Lock, tint = Color(0xFFE5483C))
+            subtitle = "Also hides Vault in the recent apps view", icon = WonderIcons.Lock, tint = Color(0xFFE5483C), help = "Makes Vault's screens black in screenshots and recordings, so passwords can't leak.")
     }
     Panel(title = "Master password and new logins") {
         ListRow("Change master password", icon = WonderIcons.Password, tint = Color(0xFF8E44AD), chevron = true, onClick = { askMaster = "rotate" })
@@ -628,7 +628,7 @@ private fun VaultSettings() {
     }
     var detailsOpen by remember { mutableStateOf(false) }
     Panel(title = "Autofill", footer = "Vault fills usernames and passwords in browsers and apps, offers to save new logins when you sign in, and can fill your name, address, phone and card on forms.") {
-        ListRow("My details for forms", subtitle = if (AutofillProfile.get().isEmpty()) "Name, address, phone and card" else "Saved", icon = WonderIcons.Person, tint = Color(0xFF1E7FE8), chevron = true, onClick = { detailsOpen = true })
+        ListRow("My details for forms", subtitle = if (AutofillProfile.get().isEmpty()) "Name, address, phone and card" else "Saved", icon = WonderIcons.Person, tint = Color(0xFF1E7FE8), chevron = true, onClick = { detailsOpen = true }, help = "Your name, address and phone number, ready to fill into forms with one tap.")
         PanelDivider()
         ListRow(if (autofillOn) "Vault is your autofill service" else "Use Vault for autofill", subtitle = if (autofillOn) "On" else "Tap to choose Vault in Android settings",
             icon = WonderIcons.Bolt, tint = Color(0xFFF2A516), chevron = !autofillOn, onClick = {
@@ -643,7 +643,7 @@ private fun VaultSettings() {
         ListRow(if (Recovery.enabled(context)) "New recovery code" else "Create a recovery code", subtitle = if (Recovery.enabled(context)) "A code is set up" else "Unlocks Vault if you forget your password",
             icon = WonderIcons.Key, tint = Color(0xFFE5483C), chevron = true, onClick = { askMaster = "recovery" })
         PanelDivider()
-        ListRow("Export encrypted backup", subtitle = "Same format as Vault for Linux", icon = WonderIcons.Download, tint = Color(0xFF16A085), chevron = true, onClick = { Vault.keepOpen(); exporter.launch("vault-backup.json") })
+        ListRow("Export encrypted backup", subtitle = "Same format as Vault for Linux", icon = WonderIcons.Download, tint = Color(0xFF16A085), chevron = true, onClick = { Vault.keepOpen(); exporter.launch("vault-backup.json") }, help = "Saves all your passwords into one encrypted file you can restore later. Keep it somewhere safe.")
         PanelDivider()
         ListRow("Trash", subtitle = "${Vault.trash.size} deleted login${if (Vault.trash.size == 1) "" else "s"}", icon = WonderIcons.Delete, tint = Color(0xFF7A7F87), chevron = true, onClick = { trash = true })
     }
@@ -744,7 +744,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
                     onClick = { Vault.keepOpen(); picker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel", "*/*")) })
             }
             Panel(title = "Send Vault's passwords to a browser") {
-                ListRow("Export for Chrome, Google or Firefox", subtitle = "A CSV file the browser can import", icon = WonderIcons.Download, tint = Color(0xFF8E44AD), chevron = true, onClick = { exportWarn = true })
+                ListRow("Export for Chrome, Google or Firefox", subtitle = "A CSV file the browser can import", icon = WonderIcons.Download, tint = Color(0xFF8E44AD), chevron = true, onClick = { exportWarn = true }, help = "Makes a plain file other password managers can read. It is not encrypted, so delete it after importing.")
             }
             Panel(title = "Let Vault do the filling", footer = "With Vault as your autofill service, browsers ask Vault instead of saving passwords themselves. Then turn off “Save passwords” in each browser so there's one place to manage them.") {
                 val af = remember { context.getSystemService(AutofillManager::class.java) }

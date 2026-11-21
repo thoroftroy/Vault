@@ -149,7 +149,7 @@ fun UnlockPane(onUnlocked: () -> Unit) {
         }
     }
     fun bio() {
-        val cipher = BioKey.decryptCipher(context) ?: kotlin.run { error = "Fingerprint unlock was reset. Unlock with your password and turn it on again."; return }
+        val cipher = BioKey.decryptCipher(context) ?: kotlin.run { error = "Fingerprint unlock needs to be set up again: Android resets it after a new fingerprint or a reinstall. Unlock with your password, then turn it back on."; return }
         BiometricPrompt.Builder(context).setTitle("Unlock Vault").setSubtitle("Confirm it's you").setNegativeButton("Use password", context.mainExecutor) { _, _ -> }.build()
             .authenticate(BiometricPrompt.CryptoObject(cipher), CancellationSignal(), context.mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
@@ -195,7 +195,7 @@ fun UnlockPane(onUnlocked: () -> Unit) {
             }
         }
         if (busy) { Text("Unlocking your vault", style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center); Text("Working out your key from the master password, a second or two on purpose", style = MaterialTheme.typography.bodySmall, color = p.secondaryText, textAlign = TextAlign.Center); AquaProgress(null, Modifier.fillMaxWidth()) }
-        error?.let { Text(it, color = p.danger, textAlign = TextAlign.Center) }
+        error?.let { Text(it, color = if (it.startsWith("Fingerprint")) p.secondaryText else p.danger, textAlign = TextAlign.Center) }
     }
     importUri?.let { uri ->
         var master by remember { mutableStateOf("") }

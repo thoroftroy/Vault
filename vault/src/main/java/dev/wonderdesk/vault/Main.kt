@@ -137,6 +137,9 @@ fun UnlockPane(onUnlocked: () -> Unit) {
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { importUri = uri }
     }
+    // Locked: the scene sleeps, grey and almost still. A wrong try flushes it red.
+    SceneMoodEffect(if (error != null) SceneMood(hue = 0f, tint = android.graphics.Color.argb(110, 220, 50, 50), energy = .5f, pulse = .35f, glyphs = listOf("✕", "•", "*"))
+        else SceneMood(energy = .25f, hush = .6f, glyphs = listOf("🔒", "•", "*", "•")))
     fun attempt(withPassword: String? = null, block: () -> Unit) {
         busy = true; error = null
         scope.launch {
@@ -260,6 +263,8 @@ private fun BioOffer() {
 @Composable
 private fun UnlockedVault() {
     val context = LocalContext.current
+    // Opening the vault wakes the scene with a little shower of keys.
+    LaunchedEffect(Unit) { WonderMood.celebrate(listOf("🔓", "✦", "•", "*")) }
     BioOffer()
     var tab by rememberSaveable { mutableStateOf("items") }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
@@ -524,6 +529,12 @@ private fun HealthPane(onOpen: (Item) -> Unit) {
     val h = remember(Vault.items) { health(Vault.items) }
     val scope = rememberCoroutineScope()
     var breach by remember { mutableStateOf<Map<String, Int>?>(null) }
+    // Password health sets the scene: calm green when everything is strong, amber with room to improve, a worried red when it needs attention.
+    SceneMoodEffect(when {
+        h.score >= 80 -> SceneMood(hue = 132f, tint = android.graphics.Color.argb(50, 90, 210, 120), glyphs = listOf("✓", "🛡", "•"))
+        h.score >= 50 -> SceneMood(hue = 42f, tint = android.graphics.Color.argb(60, 240, 180, 60), glyphs = listOf("!", "•", "*"))
+        else -> SceneMood(hue = 4f, tint = android.graphics.Color.argb(90, 225, 60, 50), energy = 1.4f, pulse = .25f, glyphs = listOf("!", "⚠", "•"))
+    })
     var checking by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
         item {

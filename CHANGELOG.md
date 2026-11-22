@@ -1,5 +1,10 @@
 # Vault changelog
 
+## v0.7.0
+
+- While Vault is locked the background sleeps, grey and almost still; a wrong password flushes it red, and unlocking wakes it with a shower of keys
+- Password health sets the mood: calm green when everything is strong, amber with room to improve, a worried red when it needs attention
+
 ## v0.6.28
 
 - The symbols drifting in the background are smaller and fainter so they no longer crowd text; selected segments and chips are readable in every look (including Super); the warning banner at the top has a solid backing so its text is easy to read

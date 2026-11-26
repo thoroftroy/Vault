@@ -33,64 +33,120 @@ import kotlinx.coroutines.withContext
 
 /** What we found on a form: the login fields, and any name, address, phone or card fields. */
 data class LoginForm(val user: AutofillId?, val pass: AutofillId?, val webDomain: String?, val pkg: String, val userValue: String? = null, val passValue: String? = null,
-    val fields: List<Pair<AutofillId, String>> = emptyList(), val forceLogin: Boolean = false) {
+    val fields: List<Pair<AutofillId, String>> = emptyList(), val forceLogin: Boolean = false,
+    /** The field you are typing in, when Android says which. */
+    val focused: AutofillId? = null,
+    /** Fields the app itself marked for autofill (Android hints or a web page's autocomplete), as opposed to guesses from their labels. */
+    val declared: Set<AutofillId> = emptySet(),
+    /** Search boxes, message boxes and the like: never offered anything. */
+    val ignored: Set<AutofillId> = emptySet()) {
     val hasLogin get() = user != null || pass != null || forceLogin
     val hasDetails get() = fields.any { it.second in AutofillProfile.PERSONAL_KEYS }
     val hasCard get() = fields.any { it.second in AutofillProfile.CARD_KEYS }
 }
 
+/** Lower-case words of a field's hints and labels: "searchContactsEditText" and "search_contacts" both become "search contacts edit text". */
+internal fun fieldWords(raw: String): String =
+    raw.replace(Regex("([a-z0-9])([A-Z])"), "$1 $2").lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+
+/** Words that mean a box is for searching, chatting or writing, so Vault keeps out of it. */
+private val NOT_A_FORM = listOf("search", "query", "find", "filter", "lookup", "message", "reply", "compose", "comment", "chat", "caption", "note", "notes",
+    "url", "omnibox", "location bar", "address bar", "subject", "body", "description", "title", "tag", "tags", "prompt", "translate", "calculator")
+
+/** True when this phrase appears as whole words ("tel" matches "tel" or "tel number", never "hotel"); long phrases also match glued together ("creditcardnumber"). */
+internal fun hasWords(words: String, phrase: String): Boolean {
+    val p = fieldWords(phrase)
+    if (Regex("(^| )" + Regex.escape(p) + "( |$)").containsMatchIn(words)) return true
+    return p.length >= 8 && p.replace(" ", "") in words.replace(" ", "")
+}
+
 /** Which kind of field this is, from Android's hints and the page's own field names. Null when it is not one we fill. */
 fun classifyField(hints: List<String>, text: String, variation: Int): String? {
-    val h = hints.joinToString(" ").lowercase()
-    val t = (h + " " + text)
-    fun has(vararg k: String) = k.any { it in t }
+    val t = fieldWords(hints.joinToString(" ") + " " + text)
+    fun has(vararg k: String) = k.any { hasWords(t, it) }
     return when {
-        has("creditcardnumber", "cc-number", "cardnumber", "card number", "card-number", "ccnumber") -> "cardNumber"
+        has("creditcardnumber", "cc-number", "cardnumber", "card number", "ccnumber") -> "cardNumber"
         has("creditcardsecuritycode", "cc-csc", "cvc", "cvv", "security code", "securitycode") -> "cardCvc"
-        has("creditcardexpiration", "cc-exp", "expiry", "expiration", "exp-date", "expdate") -> "cardExp"
+        has("creditcardexpiration", "creditcardexpirationdate", "cc-exp", "expiry", "expiration", "exp-date", "expdate") -> "cardExp"
         has("cc-name", "name on card", "cardholder", "card holder") -> "cardName"
         has("postaladdress", "street-address", "address-line1", "addressline1", "address line 1", "address1", "streetaddress", "street address") -> "line1"
-        has("address-line2", "addressline2", "address line 2", "address2", "apartment", "apt", "suite") -> "line2"
-        has("postalcode", "postal-code", "postcode", "zipcode", "zip code", "zip-code", "\bzip") -> "postcode"
+        has("address-line2", "addressline2", "address line 2", "address2", "apartment", "apt") -> "line2"
+        has("postalcode", "postal code", "postcode", "zipcode", "zip code", "zip") -> "postcode"
         has("address-level2", "city", "town", "locality") -> "city"
         has("address-level1", "state", "province", "region") && !has("password") -> "region"
-        has("country") -> "country"
-        has("given-name", "givenname", "first name", "firstname", "first-name", "fname") -> "first"
-        has("family-name", "familyname", "last name", "lastname", "last-name", "surname", "lname") -> "last"
+        has("country") && !has("code") -> "country"
+        has("given-name", "givenname", "first name", "firstname", "fname") -> "first"
+        has("family-name", "familyname", "last name", "lastname", "surname", "lname") -> "last"
         has("organization", "company", "employer") -> "org"
-        has("phone", "tel", "mobile") && !has("hotel") -> "phone"
+        has("phone", "tel", "telephone", "mobile", "phonenumber", "phone number") -> "phone"
         has("emailaddress", "email", "e-mail") || variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> "email"
-        hints.any { it == View.AUTOFILL_HINT_NAME } || Regex("""(^|[^a-z])(full ?name|name)($|[^a-z])""").containsMatchIn(t) && !has("user", "login", "company", "file", "card", "display") -> "fullName"
+        hints.any { it == View.AUTOFILL_HINT_NAME.lowercase() } || has("full name", "fullname", "your name", "name") && !has("user", "username", "login", "company", "file", "card", "display", "nickname", "group", "folder", "album", "device") -> "fullName"
         else -> null
     }
 }
 
 fun parseForm(structure: AssistStructure): LoginForm {
     var user: AutofillId? = null; var pass: AutofillId? = null; var web: String? = null
-    var userVal: String? = null; var passVal: String? = null
+    var userVal: String? = null; var passVal: String? = null; var focused: AutofillId? = null
     val fields = ArrayList<Pair<AutofillId, String>>()
-    fun hintText(n: AssistStructure.ViewNode) = listOfNotNull(n.hint, n.idEntry, n.text?.toString(), n.contentDescription?.toString(),
-        n.htmlInfo?.attributes?.joinToString(" ") { "${it.first}=${it.second}" }).joinToString(" ").lowercase()
+    val declared = HashSet<AutofillId>(); val ignored = HashSet<AutofillId>()
+    fun hintText(n: AssistStructure.ViewNode) = listOfNotNull(n.hint, n.idEntry, n.contentDescription?.toString(),
+        n.htmlInfo?.attributes?.joinToString(" ") { "${it.first} ${it.second}" }).joinToString(" ")
     fun visit(n: AssistStructure.ViewNode) {
         if (!n.webDomain.isNullOrBlank()) web = n.webDomain
         val id = n.autofillId
         if (id != null && n.autofillType == View.AUTOFILL_TYPE_TEXT) {
+            if (n.isFocused) focused = id
             val hints = n.autofillHints?.map { it.lowercase() }.orEmpty()
+            // What you have typed is not a label: "Paris" in a search box must not make it a city field.
             val text = hintText(n)
+            val words = fieldWords(hints.joinToString(" ") + " " + text)
+            val cls = n.inputType and InputType.TYPE_MASK_CLASS
             val variation = n.inputType and InputType.TYPE_MASK_VARIATION
+            val multiLine = cls == InputType.TYPE_CLASS_TEXT && (n.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
+            val html = n.htmlInfo?.attributes.orEmpty().associate { it.first.lowercase() to it.second.lowercase() }
             val isPass = hints.any { "password" in it } || variation == InputType.TYPE_TEXT_VARIATION_PASSWORD || variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
-                variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD || "type=password" in text || ("pass" in text && "passport" !in text)
-            val isUser = !isPass && (hints.any { it in setOf("username", "emailaddress", "email", "phone") || "user" in it || "email" in it } ||
-                variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS ||
-                listOf("user", "email", "e-mail", "login", "account", "type=email").any { it in text })
-            if (isPass && pass == null) { pass = id; passVal = n.autofillValue?.takeIf { it.isText }?.textValue?.toString() }
-            else if (isUser && user == null) { user = id; userVal = n.autofillValue?.takeIf { it.isText }?.textValue?.toString() }
-            if (!isPass) classifyField(hints, text, variation)?.let { k -> fields.add(id to k) }
+                variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD || html["type"] == "password" || (hasWords(words, "password") || hasWords(words, "passcode") || hasWords(words, "pass")) && !hasWords(words, "passport")
+            val noise = !isPass && hints.isEmpty() && (html["type"] == "search" || variation == InputType.TYPE_TEXT_VARIATION_URI || multiLine || NOT_A_FORM.any { hasWords(words, it) })
+            val fromApp = hints.any { it != "off" && it != "on" } || html["autocomplete"].let { it != null && it != "off" && it != "on" }
+            if (noise) ignored.add(id)
+            else {
+                if (fromApp) declared.add(id)
+                val isUser = !isPass && (hints.any { it in setOf("username", "emailaddress", "email", "phone") || "user" in it || "email" in it } ||
+                    variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS ||
+                    html["type"] == "email" || listOf("username", "user", "user name", "user id", "email", "e-mail", "login", "sign in", "account").any { hasWords(words, it) })
+                if (isPass && pass == null) { pass = id; passVal = n.autofillValue?.takeIf { it.isText }?.textValue?.toString() }
+                else if (isUser && user == null) { user = id; userVal = n.autofillValue?.takeIf { it.isText }?.textValue?.toString() }
+                if (!isPass) classifyField(hints, text, variation)?.let { k -> fields.add(id to k) }
+            }
         }
         for (i in 0 until n.childCount) visit(n.getChildAt(i))
     }
     for (i in 0 until structure.windowNodeCount) visit(structure.getWindowNodeAt(i).rootViewNode)
-    return LoginForm(user, pass, web, structure.activityComponent.packageName, userVal, passVal, fields)
+    return LoginForm(user, pass, web, structure.activityComponent.packageName, userVal, passVal, fields, focused = focused, declared = declared, ignored = ignored)
+}
+
+private val PEOPLE_APPS = setOf("com.google.android.contacts", "com.android.contacts", "com.samsung.android.contacts", "com.google.android.dialer",
+    "com.android.dialer", "com.samsung.android.dialer", "com.google.android.apps.messaging", "com.android.mms", "dev.wonderdesk.beacon")
+
+/**
+ * Whether Vault should offer itself at all. Android asks on every text box, so Vault keeps quiet unless this really is a sign-in,
+ * address or card form and you are in one of its fields. Asking by hand (the keyboard's or the menu's Autofill) always shows it.
+ */
+fun worthOffering(form: LoginForm, manual: Boolean): Boolean {
+    if (manual) return form.hasLogin || form.hasDetails || form.hasCard || form.focused != null
+    val focus = form.focused
+    if (focus != null && focus in form.ignored) return false
+    val loginIds = listOfNotNull(form.user, form.pass)
+    // A sign-in: a password box on screen, or a user name box the app or page marked as one (two-step sign-ins ask for the email first).
+    val login = form.pass != null || (form.user != null && (form.user in form.declared || form.webDomain != null))
+    // Details or a card: one box the app marked, or at least two boxes that look like a real address or card form.
+    val detailKinds = form.fields.map { it.second }.toSet()
+    // Contacts and dialler apps hold other people's details, so "My details" is never offered there.
+    val details = form.pkg !in PEOPLE_APPS && (form.fields.any { it.first in form.declared } || detailKinds.size >= 2)
+    val wanted = (if (login) loginIds else emptyList()) + (if (details) form.fields.map { it.first } else emptyList())
+    if (wanted.isEmpty()) return false
+    return focus == null || focus in wanted
 }
 
 private fun presentation(c: Context, title: String, sub: String): RemoteViews = RemoteViews(c.packageName, R.layout.autofill_item).apply {
@@ -122,7 +178,8 @@ class VaultAutofillService : AutofillService() {
         Vault.init(this)
         val structure = request.fillContexts.lastOrNull()?.structure ?: return callback.onSuccess(null)
         val form = parseForm(structure)
-        if (form.pkg == packageName || (!form.hasLogin && !form.hasDetails && !form.hasCard)) return callback.onSuccess(null)
+        val manual = (request.flags and FillRequest.FLAG_MANUAL_REQUEST) != 0
+        if (form.pkg == packageName || (!form.hasLogin && !form.hasDetails && !form.hasCard) || !worthOffering(form, manual)) return callback.onSuccess(null)
         val ids = (listOfNotNull(form.user, form.pass) + form.fields.map { it.first }).distinct().toTypedArray()
         val response = FillResponse.Builder()
         val open = Vault.unlocked && Vault.idleMs() < 5 * 60_000L

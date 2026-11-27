@@ -9,6 +9,7 @@
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
         <activity android:name=".LoginPickActivity" android:exported="true" android:permission="dev.wonderdesk.vault.LOGINS" android:theme="@style/VaultSheet" android:windowSoftInputMode="adjustResize" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.vault.autofill" />
+        <activity android:name=".QuickLookActivity" android:exported="true" android:permission="dev.wonderdesk.vault.LOGINS" android:theme="@style/VaultSheet" android:windowSoftInputMode="adjustResize" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.vault.quick" android:launchMode="singleTask" />
         <activity android:name=".AutofillPickActivity" android:exported="false" android:theme="@style/VaultSheet" android:windowSoftInputMode="adjustResize" android:excludeFromRecents="true" android:taskAffinity="dev.wonderdesk.vault.autofill" />
         <service android:name=".VaultAutofillService" android:exported="true" android:label="Vault" android:permission="android.permission.BIND_AUTOFILL_SERVICE">
             <intent-filter><action android:name="android.service.autofill.AutofillService" /></intent-filter>

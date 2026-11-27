@@ -129,24 +129,60 @@ fun parseForm(structure: AssistStructure): LoginForm {
 private val PEOPLE_APPS = setOf("com.google.android.contacts", "com.android.contacts", "com.samsung.android.contacts", "com.google.android.dialer",
     "com.android.dialer", "com.samsung.android.dialer", "com.google.android.apps.messaging", "com.android.mms", "dev.wonderdesk.beacon")
 
+/** What Vault knows about you for this screen, readable while locked. */
+data class Saved(val login: Boolean, val details: Boolean, val card: Boolean)
+
 /**
- * Whether Vault should offer itself at all. Android asks on every text box, so Vault keeps quiet unless this really is a sign-in,
- * address or card form and you are in one of its fields. Asking by hand (the keyboard's or the menu's Autofill) always shows it.
+ * Whether Vault should offer itself at all. Android asks on every text box, so Vault keeps quiet unless it is really needed:
+ *  - a sign-in (a password box) and you are in its user name or password box;
+ *  - a user name or email box on its own (two-step sign-ins) only when a login is saved for this site or app;
+ *  - an address or card form only when you saved details or a card, and only in one of those boxes.
+ * When Android does not say which box you are in, it only offers on a sign-in it has a saved login for.
+ * Asking by hand (the keyboard's or the menu's Autofill) always shows it.
  */
-fun worthOffering(form: LoginForm, manual: Boolean): Boolean {
+fun worthOffering(form: LoginForm, manual: Boolean, saved: Saved): Boolean {
     if (manual) return form.hasLogin || form.hasDetails || form.hasCard || form.focused != null
     val focus = form.focused
-    if (focus != null && focus in form.ignored) return false
-    val loginIds = listOfNotNull(form.user, form.pass)
-    // A sign-in: a password box on screen, or a user name box the app or page marked as one (two-step sign-ins ask for the email first).
-    val login = form.pass != null || (form.user != null && (form.user in form.declared || form.webDomain != null))
-    // Details or a card: one box the app marked, or at least two boxes that look like a real address or card form.
-    val detailKinds = form.fields.map { it.second }.toSet()
+    val kind = when {
+        focus == null -> null
+        focus in form.ignored -> "ignored"
+        focus == form.pass -> "pass"
+        focus == form.user -> "user"
+        form.fields.any { it.first == focus && it.second in AutofillProfile.CARD_KEYS } -> "card"
+        form.fields.any { it.first == focus && it.second in AutofillProfile.PERSONAL_KEYS } -> "detail"
+        else -> "other"
+    }
+    val kinds = form.fields.map { it.second }.toSet()
+    return offerDecision(kind, form.pass != null, form.user != null, saved,
+        declaredDetails = form.fields.count { it.first in form.declared && it.second in AutofillProfile.PERSONAL_KEYS }, detailKinds = kinds.count { it in AutofillProfile.PERSONAL_KEYS },
+        cardFields = kinds.count { it in AutofillProfile.CARD_KEYS }, peopleApp = form.pkg in PEOPLE_APPS)
+}
+
+/** The form cut down to the boxes Vault may appear on. Android shows the pop-up on every box named in the answer, so nothing else is named. */
+fun trimForm(form: LoginForm, saved: Saved, manual: Boolean): LoginForm {
+    if (manual) return form
+    val login = form.pass != null || (form.user != null && saved.login)
+    val kinds = form.fields.map { it.second }.toSet()
+    val details = saved.details && form.pkg !in PEOPLE_APPS &&
+        (form.fields.any { it.first in form.declared && it.second in AutofillProfile.PERSONAL_KEYS } || kinds.count { it in AutofillProfile.PERSONAL_KEYS } >= 3)
+    val card = saved.card && kinds.any { it in AutofillProfile.CARD_KEYS }
+    return form.copy(user = form.user.takeIf { login }, pass = form.pass.takeIf { login }, forceLogin = form.forceLogin && login,
+        fields = form.fields.filter { (_, k) -> (details && k in AutofillProfile.PERSONAL_KEYS) || (card && k in AutofillProfile.CARD_KEYS) })
+}
+
+/** The rule itself, on plain values so it can be tested. [focus] is "pass", "user", "detail", "card", "ignored", "other" or null (unknown). */
+internal fun offerDecision(focus: String?, hasPass: Boolean, hasUser: Boolean, saved: Saved, declaredDetails: Int, detailKinds: Int, cardFields: Int, peopleApp: Boolean): Boolean {
+    val login = hasPass || (hasUser && saved.login)
     // Contacts and dialler apps hold other people's details, so "My details" is never offered there.
-    val details = form.pkg !in PEOPLE_APPS && (form.fields.any { it.first in form.declared } || detailKinds.size >= 2)
-    val wanted = (if (login) loginIds else emptyList()) + (if (details) form.fields.map { it.first } else emptyList())
-    if (wanted.isEmpty()) return false
-    return focus == null || focus in wanted
+    val details = saved.details && !peopleApp && (declaredDetails >= 1 || detailKinds >= 3)
+    val card = saved.card && cardFields >= 1
+    return when (focus) {
+        "pass", "user" -> login
+        "detail" -> details
+        "card" -> card
+        null -> hasPass && saved.login
+        else -> false
+    }
 }
 
 private fun presentation(c: Context, title: String, sub: String): RemoteViews = RemoteViews(c.packageName, R.layout.autofill_item).apply {
@@ -177,10 +213,14 @@ class VaultAutofillService : AutofillService() {
     override fun onFillRequest(request: FillRequest, cancellationSignal: CancellationSignal, callback: FillCallback) {
         Vault.init(this)
         val structure = request.fillContexts.lastOrNull()?.structure ?: return callback.onSuccess(null)
-        val form = parseForm(structure)
+        val form0 = parseForm(structure)
         val manual = (request.flags and FillRequest.FLAG_MANUAL_REQUEST) != 0
-        if (form.pkg == packageName || (!form.hasLogin && !form.hasDetails && !form.hasCard) || !worthOffering(form, manual)) return callback.onSuccess(null)
+        if (form0.pkg == packageName || (!form0.hasLogin && !form0.hasDetails && !form0.hasCard)) return callback.onSuccess(null)
+        val saved = Saved(Vault.hasSavedFor(form0.webDomain, form0.pkg), Vault.hasSavedDetails(), Vault.hasSavedCard())
+        if (!worthOffering(form0, manual, saved)) return callback.onSuccess(null)
+        val form = trimForm(form0, saved, manual)
         val ids = (listOfNotNull(form.user, form.pass) + form.fields.map { it.first }).distinct().toTypedArray()
+        if (ids.isEmpty()) return callback.onSuccess(null)
         val response = FillResponse.Builder()
         val open = Vault.unlocked && Vault.idleMs() < 5 * 60_000L
         if (open) {
@@ -258,7 +298,7 @@ class LoginPickActivity : AutofillPickActivity()
 
 /** Fingerprint straight away if it is set up, otherwise just the master password. */
 @Composable
-private fun CompactUnlock(onUnlocked: () -> Unit) {
+internal fun CompactUnlock(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val p = wonderPalette()
     val scope = rememberCoroutineScope()

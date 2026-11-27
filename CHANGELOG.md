@@ -1,5 +1,13 @@
 # Vault changelog
 
+## v0.8.0
+
+- Vault's pop-up keeps out of places it was never needed: search boxes (such as searching contacts), message boxes and notes are never offered anything, and contacts and dialler apps are never offered My details
+- The animated background now has a picture of its own behind everything: a turning safe dial. It is faint, so text stays easy to read
+- Aqua changes far more through the day: a rose dawn, gold sunrise, turquoise morning, deep azure noon, warm afternoon, orange sunset, violet dusk and a real dark night with the moon shimmering through the water and glowing plankton. Now and then a cloud passes over and the light dims
+- Super's space changes with the time of day too: a dark night with brighter stars, a rose dawn, teal morning, cobalt noon and a red and amber sunset
+- Opening the app no longer sprays a burst of fast symbols across the background; celebrations are a gentle lift of a few symbols, and only for something you just did
+
 ## v0.7.0
 
 - While Vault is locked the background sleeps, grey and almost still; a wrong password flushes it red, and unlocking wakes it with a shower of keys

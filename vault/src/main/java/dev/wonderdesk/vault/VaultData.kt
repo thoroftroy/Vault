@@ -67,9 +67,12 @@ object Vault {
     fun keepOpen(minutes: Int = 10) { keepOpenUntil = System.currentTimeMillis() + minutes * 60_000L }
     fun mayLockNow() = System.currentTimeMillis() > keepOpenUntil
 
+    private var indexFile: File? = null
+
     fun init(context: Context) {
         if (::engine.isInitialized) return
         val dir = context.filesDir
+        indexFile = File(dir, "vault-index.json")
         engine = EncryptedVault(File(dir, "vault-v2.json"))
         sidecar = File(dir, "vault-extras.bin")
         trashFile = File(dir, "vault-trash.bin")
@@ -104,7 +107,56 @@ object Vault {
             val o = a.getJSONObject(i); Item(o.getString("id"), o.getString("title"), o.getString("user"), o.getString("pw"), o.optString("url"), o.optString("notes"), updated = o.optLong("deleted"))
         } } }.getOrDefault(emptyList()).filter { System.currentTimeMillis() - it.updated < 30L * 86_400_000L }
         unlocked = true
+        writeIndex(items)
     }
+
+    /*
+     * What the autofill pop-up may know while Vault is locked: whether this site or app has a saved login, and whether you saved
+     * details or a card. Only salted fingerprints of site and app names are kept (never a name, user name or password), so the file
+     * does not even list the sites you use.
+     */
+    private fun fp(salt: String, key: String): String =
+        MessageDigest.getInstance("SHA-256").digest((salt + key).toByteArray()).joinToString("") { "%02x".format(it) }.take(24)
+
+    private fun writeIndex(list: List<Item>) {
+        val f = indexFile ?: return
+        runCatching {
+            val salt = runCatching { JSONObject(f.readText()).optString("salt") }.getOrNull()?.takeIf { it.isNotEmpty() }
+                ?: Base64.encodeToString(ByteArray(16).also { SecureRandom().nextBytes(it) }, Base64.NO_WRAP)
+            val keys = HashSet<String>()
+            list.filter { it.category != AutofillProfile.CAT }.forEach { i ->
+                if (i.domain.isNotEmpty()) { val r = rootDomain(i.domain); keys += fp(salt, "d:$r"); keys += fp(salt, "n:" + r.substringBefore('.')) }
+                i.apps.forEach { keys += fp(salt, "a:$it") }
+                i.title.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length > 3 }.forEach { keys += fp(salt, "n:$it") }
+            }
+            val prof = list.firstOrNull { it.category == AutofillProfile.CAT }?.notes?.let { runCatching { JSONObject(it) }.getOrNull() }
+            fun has(k: Set<String>) = prof != null && k.any { prof.optString(it).isNotBlank() }
+            val o = JSONObject().put("salt", salt).put("keys", JSONArray(keys.sorted()))
+                .put("details", has(AutofillProfile.PERSONAL_KEYS)).put("card", has(AutofillProfile.CARD_KEYS))
+            val tmp = File(f.path + ".tmp"); tmp.writeText(o.toString()); tmp.renameTo(f)
+        }
+    }
+
+    private fun readIndex(): JSONObject? = indexFile?.let { f -> runCatching { JSONObject(f.readText()) }.getOrNull() }
+
+    /** Is a login saved for this site or app? Works while locked (from the fingerprints), exactly while open. */
+    fun hasSavedFor(webDomain: String?, pkg: String?): Boolean {
+        if (unlocked) return matches(webDomain, pkg).isNotEmpty()
+        val o = readIndex() ?: return false
+        val salt = o.optString("salt"); val a = o.optJSONArray("keys") ?: return false
+        val keys = (0 until a.length()).map { a.getString(it) }.toHashSet()
+        val host = webDomain?.let { domainOf(it) }?.takeIf { it.isNotEmpty() }
+        if (host != null) { val r = rootDomain(host); val n = r.substringBefore('.'); if (fp(salt, "d:$r") in keys || (n.length > 3 && fp(salt, "n:$n") in keys)) return true }
+        if (pkg != null) {
+            if (fp(salt, "a:$pkg") in keys) return true
+            if (pkg.split('.').any { it.length > 3 && it !in setOf("android", "google", "apps", "mobile") && fp(salt, "n:$it") in keys }) return true
+        }
+        return false
+    }
+
+    /** Whether you saved your name and address, or a card, for forms (readable while locked). */
+    fun hasSavedDetails() = if (unlocked) AutofillProfile.get().keys.any { it in AutofillProfile.PERSONAL_KEYS } else readIndex()?.optBoolean("details") == true
+    fun hasSavedCard() = if (unlocked) AutofillProfile.get().keys.any { it in AutofillProfile.CARD_KEYS } else readIndex()?.optBoolean("card") == true
 
     private fun persist(list: List<Item>) {
         engine.save(JSONArray(list.map { JSONObject().put("title", it.title).put("user", it.user).put("pw", it.pw) }))
@@ -112,6 +164,7 @@ object Vault {
         val blob = JSONObject().put("order", JSONArray(list.map { it.id })).put("items", meta).toString().toByteArray()
         val tmp = File(sidecar.path + ".tmp"); tmp.writeBytes(engine.sealExtra(blob)); tmp.renameTo(sidecar)
         items = list; touch()
+        writeIndex(list)
     }
 
     private fun persistTrash(list: List<Item>) {

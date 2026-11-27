@@ -2,6 +2,10 @@
 
 ## v0.8.0
 
+- Vault offers to fill far less often: only on a sign-in with a password box, on an email or user name box when a login is saved for that app or site, and on address or card forms when you saved details or a card. Search, message and other boxes are left alone, and it can tell which sites have a saved login even while locked (from scrambled fingerprints, never the names)
+- New quick look: unlock and copy a user name, password or 2FA code from a small sheet without opening Vault. Opened from the Launcher button's Passwords shortcut, it puts the logins for the app you are in first and can remember a login for that app
+- The background safe dial clicks round with each character of your master password, spins back on a wrong one and swings open when Vault unlocks
+- The background answers your finger: a tap sends rings out and pops what it lands on, and dragging or scrolling leaves a wake and stirs the scene. Saving, adding, deleting and finishing things send a wave of colour through it, and an error gives a red shudder
 - Vault's pop-up keeps out of places it was never needed: search boxes (such as searching contacts), message boxes and notes are never offered anything, and contacts and dialler apps are never offered My details
 - The animated background now has a picture of its own behind everything: a turning safe dial. It is faint, so text stays easy to read
 - Aqua changes far more through the day: a rose dawn, gold sunrise, turquoise morning, deep azure noon, warm afternoon, orange sunset, violet dusk and a real dark night with the moon shimmering through the water and glowing plankton. Now and then a cloud passes over and the light dims

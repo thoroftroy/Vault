@@ -178,9 +178,11 @@ object Vault {
         val withHistory = if (old != null && old.pw != item.pw && old.pw.isNotEmpty()) item.copy(history = (listOf(old.pw to System.currentTimeMillis()) + old.history).take(10)) else item
         val next = if (old == null) items + withHistory.copy(updated = System.currentTimeMillis()) else items.map { if (it.id == item.id) withHistory.copy(updated = System.currentTimeMillis()) else it }
         persist(next.sortedBy { it.title.lowercase() })
+        // A wave through the scene: blue rising for a new login, softer for a change.
+        dev.wonderdesk.shared.WonderMood.ping(if (old == null) dev.wonderdesk.shared.ScenePing.ADDED else dev.wonderdesk.shared.ScenePing.SAVED)
     }
 
-    fun delete(item: Item) { persistTrash(listOf(item.copy(updated = System.currentTimeMillis())) + trash); persist(items.filter { it.id != item.id }) }
+    fun delete(item: Item) { persistTrash(listOf(item.copy(updated = System.currentTimeMillis())) + trash); persist(items.filter { it.id != item.id }); dev.wonderdesk.shared.WonderMood.ping(dev.wonderdesk.shared.ScenePing.REMOVED) }
     fun restore(item: Item) { persistTrash(trash.filter { it.id != item.id }); upsert(item.copy(id = UUID.randomUUID().toString())) }
     fun purge(item: Item) = persistTrash(trash.filter { it.id != item.id })
 

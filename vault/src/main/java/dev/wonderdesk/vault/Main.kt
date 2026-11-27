@@ -140,6 +140,11 @@ fun UnlockPane(onUnlocked: () -> Unit) {
     // Locked: the scene sleeps, grey and almost still. A wrong try flushes it red.
     SceneMoodEffect(if (error != null) SceneMood(hue = 0f, tint = android.graphics.Color.argb(110, 220, 50, 50), energy = .5f, pulse = .35f, glyphs = listOf("✕", "•", "*"))
         else SceneMood(energy = .25f, hush = .6f, glyphs = listOf("🔒", "•", "*", "•")))
+    // The safe dial: it clicks round with each character you type, spins back on a wrong password (with a red shudder).
+    SideEffect { SceneFeed.state = if (error != null) "error" else "locked" }
+    var pwLen by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pw.length) { if (pw.length > pwLen) SceneFeed.beat(); pwLen = pw.length }
+    LaunchedEffect(error) { if (error != null) WonderMood.ping(ScenePing.ERROR) }
     fun attempt(withPassword: String? = null, block: () -> Unit) {
         busy = true; error = null
         scope.launch {
@@ -265,6 +270,8 @@ private fun UnlockedVault() {
     val context = LocalContext.current
     // Opening the vault wakes the scene with a little shower of keys.
     LaunchedEffect(Unit) { WonderMood.celebrate(listOf("🔓", "✦", "•", "*")) }
+    // Open: the dial swings aside like the door of a safe.
+    SideEffect { SceneFeed.state = "open" }
     BioOffer()
     var tab by rememberSaveable { mutableStateOf("items") }
     var open by rememberSaveable { mutableStateOf<String?>(null) }

@@ -327,7 +327,7 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SearchField(q, { q = it; Vault.touch() }, "Search ${Vault.items.size} login${if (Vault.items.size == 1) "" else "s"}")
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.scrollRow(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 cats.forEach { c -> Chip(c, filter == c, { filter = c }, if (c == "Favorites") WonderIcons.Star else null) }
             }
         }
@@ -468,7 +468,7 @@ private fun EditItem(initial: Item, onClose: () -> Unit, onSaved: (Item) -> Unit
             Panel(title = "More") {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Field(i.totp, { i = i.copy(totp = it.trim()) }, "Two-factor key (optional)", supporting = "The setup key or otpauth:// link a site shows when you turn on 2FA")
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.scrollRow(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Login", "Email", "Social", "Banking", "Shopping", "Work", "Games", "Wi-Fi", "Other").forEach { c -> Chip(c, i.category == c, { i = i.copy(category = c) }) }
                     }
                     Field(i.notes, { i = i.copy(notes = it) }, "Notes", singleLine = false, minLines = 3)
@@ -637,11 +637,11 @@ private fun VaultSettings() {
     Panel(title = "Privacy") {
         var clip by remember { mutableIntStateOf(prefs.getInt("clipSeconds", 30)) }
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Clear copied passwords after", style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10 to "10 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 0 to "Never").forEach { (v, n) -> Chip(n, clip == v, { clip = v; prefs.edit().putInt("clipSeconds", v).apply() }) } } }
+            Row(Modifier.scrollRow(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(10 to "10 s", 30 to "30 s", 60 to "1 min", 120 to "2 min", 0 to "Never").forEach { (v, n) -> Chip(n, clip == v, { clip = v; prefs.edit().putInt("clipSeconds", v).apply() }) } } }
         PanelDivider()
         var rs by remember { mutableIntStateOf(prefs.getInt("revealSec", 15)) }
         Column(Modifier.padding(16.dp, 10.dp)) { Text("Hide a shown password again after", style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(5 to "5 s", 15 to "15 s", 30 to "30 s", 0 to "Never").forEach { (v, n) -> Chip(n, rs == v, { rs = v; prefs.edit().putInt("revealSec", v).apply() }) } } }
+            Row(Modifier.scrollRow(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(5 to "5 s", 15 to "15 s", 30 to "30 s", 0 to "Never").forEach { (v, n) -> Chip(n, rs == v, { rs = v; prefs.edit().putInt("revealSec", v).apply() }) } } }
         PanelDivider()
         var shots by remember { mutableStateOf(prefs.getBoolean("noShots", false)) }
         SwitchRow("Block screenshots and screen recording", shots, { shots = it; prefs.edit().putBoolean("noShots", it).apply()

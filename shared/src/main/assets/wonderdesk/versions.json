@@ -14,7 +14,7 @@
     "timepiece": "0.7.1",
     "safekeeper": "0.7.1",
     "beacon": "0.7.1",
-    "vault": "0.8.2",
+    "vault": "0.8.3",
     "control-room": "0.8.1",
     "connections": "0.2.0",
     "devices": "0.2.0",

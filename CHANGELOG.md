@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.8.3
+
+- Rows that scroll sideways (chips, filters, tabs) now fade at the edge where there is more, show a small arrow you can tap, and nudge once when first shown, so it is clear there is more to scroll to
+
 ## v0.8.2
 
 - Password health is easier to read: the score comes first and says it is out of 100, with a plain line such as "1 of 3 logins could be safer"; the long explanation of the leak check moved behind its ? button

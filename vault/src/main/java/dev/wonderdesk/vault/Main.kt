@@ -326,7 +326,7 @@ private fun ItemsPane(onOpen: (Item) -> Unit, onNew: () -> Unit) {
     }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SearchField(q, { q = it; Vault.touch() }, "Search ${Vault.items.size} logins")
+            SearchField(q, { q = it; Vault.touch() }, "Search ${Vault.items.size} login${if (Vault.items.size == 1) "" else "s"}")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 cats.forEach { c -> Chip(c, filter == c, { filter = c }, if (c == "Favorites") WonderIcons.Star else null) }
             }
@@ -399,6 +399,11 @@ private fun ItemDetail(i: Item, onBack: () -> Unit, onEdit: () -> Unit) {
                 })
                 val (lvl, label) = Generator.strength(i.pw)
                 Box(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 10.dp)) { StrengthBar(lvl, label) }
+                // A weak password gets a direct way to fix it, as Health promises: Edit has the ⟳ button that makes a strong one.
+                if (lvl <= 1) Column(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp)) {
+                    WButton("Change password", onEdit, icon = WonderIcons.Edit)
+                    Text("Tap ⟳ next to the password for a strong one, then change it on ${i.domain.ifBlank { "the website or app" }} too.", style = MaterialTheme.typography.bodySmall, color = wonderPalette().secondaryText, modifier = Modifier.padding(top = 4.dp))
+                }
                 if (i.totp.isNotBlank()) {
                     PanelDivider()
                     val now = rememberNow(1000)
@@ -504,7 +509,7 @@ private fun GeneratorPane(compact: Boolean = false, onUse: (String) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WButton("New", { tick++ }, icon = WonderIcons.Refresh)
                     WButton("Copy", { context.copySecret("Password", pw); toast("Copied") }, icon = WonderIcons.ContentCopy)
-                    WButton(if (compact) "Use" else "Save as login", { onUse(pw) }, kind = ButtonKind.Primary)
+                    WButton(if (compact) "Use" else "New login", { onUse(pw) }, kind = ButtonKind.Primary)
                 }
             }
         }
@@ -545,8 +550,31 @@ private fun HealthPane(onOpen: (Item) -> Unit) {
     var checking by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize(), state = rememberTabTopList(), contentPadding = PaddingValues(16.dp)) {
         item {
-            Panel(Modifier.padding(bottom = 14.dp), title = "Leaked passwords", footer = "Checks Have I Been Pwned's list of passwords from known data breaches. Only the first 5 characters of a scrambled (SHA-1) copy of each password leave your phone, never the password itself.") {
-                if (breach == null) ListRow(if (checking) "Checking…" else "Check for leaked passwords", icon = WonderIcons.Security, tint = p.warning, chevron = !checking, onClick = {
+            Panel {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(progress = { h.score / 100f }, modifier = Modifier.fillMaxSize(), strokeWidth = 8.dp,
+                            color = when { h.score >= 80 -> p.success; h.score >= 50 -> p.warning; else -> p.danger }, trackColor = p.separator)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("${h.score}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
+                            Text("of 100", style = MaterialTheme.typography.labelSmall, color = p.secondaryText)
+                        }
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(when { h.score >= 80 -> "Looking good"; h.score >= 50 -> "Room to improve"; else -> "Needs attention" }, style = MaterialTheme.typography.titleLarge)
+                        val problems = (h.weak + h.reused.values.flatten() + h.old).distinctBy { it.id }.size
+                        Text(if (Vault.items.isEmpty()) "No logins yet" else if (problems == 0) "All ${Vault.items.size} login${if (Vault.items.size == 1) " is" else "s are"} strong and unique" else "$problems of ${Vault.items.size} login${if (Vault.items.size == 1) "" else "s"} could be safer. Tap one below to fix it",
+                            style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+        item {
+            Panel(Modifier.padding(bottom = 14.dp), title = "Leaked passwords", footer = "Looks your passwords up in lists from known data breaches, without sending them.") {
+                if (breach == null) ListRow(if (checking) "Checking ${Vault.items.size} password${if (Vault.items.size == 1) "" else "s"}…" else "Check for leaked passwords", icon = WonderIcons.Security, tint = p.warning, chevron = !checking,
+                    help = "Uses Have I Been Pwned. Only the first 5 characters of a scrambled (SHA-1) copy of each password leave your phone, never the password itself, so nobody can learn it.", onClick = {
                     if (checking) return@ListRow
                     checking = true
                     scope.launch {
@@ -560,23 +588,6 @@ private fun HealthPane(onOpen: (Item) -> Unit) {
                         ListRow(it.title.ifBlank { it.domain }, subtitle = "Seen %,d times in leaks · change it".format(breach!![it.id]), leading = { LetterTile(it) }, chevron = true, onClick = { onOpen(it) }) }
                 }
             }
-        }
-        item {
-            Panel {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(progress = { h.score / 100f }, modifier = Modifier.fillMaxSize(), strokeWidth = 8.dp,
-                            color = when { h.score >= 80 -> p.success; h.score >= 50 -> p.warning; else -> p.danger }, trackColor = p.separator)
-                        Text("${h.score}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text(when { h.score >= 80 -> "Looking good"; h.score >= 50 -> "Room to improve"; else -> "Needs attention" }, style = MaterialTheme.typography.titleLarge)
-                        Text("${Vault.items.size} logins checked on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall, color = p.secondaryText)
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
         }
         fun section(title: String, list: List<Item>, why: String) {
             if (list.isEmpty()) return
@@ -741,7 +752,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
     }
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runCatching { context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(BrowserPasswords.export(Vault.items).toByteArray()) } }
-            .onSuccess { toast.value("Exported ${Vault.items.size} logins. Import the file in your browser, then delete it") }.onFailure { toast.value("Couldn't save the file") }
+            .onSuccess { toast.value("Exported ${Vault.items.size} login${if (Vault.items.size == 1) "" else "s"}. Import the file in your browser, then delete it") }.onFailure { toast.value("Couldn't save the file") }
     }
     var guide by remember { mutableStateOf<BrowserPasswords.Browser?>(null) }
     WonderApp(appName = "Vault", about = ABOUT, title = "Import and export", onBack = onBack) {
@@ -790,7 +801,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
     }
     preview?.let { (uri, parsed) ->
         val newCount = parsed.items.count { n -> Vault.items.none { e -> e.user.equals(n.user, true) && rootDomain(e.domain) == rootDomain(n.domain) } }
-        WonderDialog(onDismissRequest = { preview = null }, title = { Text("Import ${parsed.items.size} logins?") }, text = {
+        WonderDialog(onDismissRequest = { preview = null }, title = { Text("Import ${parsed.items.size} login${if (parsed.items.size == 1) "" else "s"}?") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("From ${parsed.source}. $newCount are new; the rest match logins already in Vault and will be updated if the password changed.")
                 Panel { parsed.items.take(5).forEachIndexed { i, it -> if (i > 0) PanelDivider(); ListRow(it.title.ifBlank { it.domain }, subtitle = it.user) } }
@@ -807,7 +818,7 @@ private fun BrowsersScreen(onBack: () -> Unit) {
             toast.value(if (ok) "Export file deleted" else "Couldn't delete it here. Delete it in Wayfinder"); done = null
         }) { Text("Delete file", color = p.danger) } }, dismissButton = { TextButton(onClick = { done = null }) { Text("Keep") } })
     }
-    if (exportWarn) ConfirmDialog("Export ${Vault.items.size} passwords?", "The file isn't encrypted. Anyone who opens it can read every password. Import it into your browser right away, then delete it.",
+    if (exportWarn) ConfirmDialog("Export ${Vault.items.size} password${if (Vault.items.size == 1) "" else "s"}?", "The file isn't encrypted. Anyone who opens it can read every password. Import it into your browser right away, then delete it.",
         "Export", onConfirm = { Vault.keepOpen(); saver.launch("vault-passwords.csv") }, onDismiss = { exportWarn = false })
 }
 

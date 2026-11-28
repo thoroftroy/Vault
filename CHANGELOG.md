@@ -1,5 +1,12 @@
 # Vault changelog
 
+## v0.8.2
+
+- Password health is easier to read: the score comes first and says it is out of 100, with a plain line such as "1 of 3 logins could be safer"; the long explanation of the leak check moved behind its ? button
+- A weak password now has a Change password button on its page, as Health suggests, with a reminder to change it on the website too
+- The generator's button says New login instead of a cut-off "Save as lo…"
+- "1 login" instead of "1 logins" in search, Health, import and export
+
 ## v0.8.1
 
 - The moving background holds still while Battery Saver is on, so it uses next to no power then. It still changes with what the app is doing

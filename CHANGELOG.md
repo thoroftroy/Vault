@@ -1,5 +1,9 @@
 # Vault changelog
 
+## v0.8.1
+
+- The moving background holds still while Battery Saver is on, so it uses next to no power then. It still changes with what the app is doing
+
 ## v0.8.0
 
 - Vault offers to fill far less often: only on a sign-in with a password box, on an email or user name box when a login is saved for that app or site, and on address or card forms when you saved details or a card. Search, message and other boxes are left alone, and it can tell which sites have a saved login even while locked (from scrambled fingerprints, never the names)
